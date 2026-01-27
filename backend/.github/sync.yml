@@ -1,0 +1,30 @@
+name: Stock Data Sync
+
+on:
+  schedule:
+    - cron: '*/10 * * * *' # 10분마다 자동으로 실행 (UTC 기준)
+  workflow_dispatch:      # 버튼을 눌러서 수동으로도 실행 가능
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          pip install yfinance firebase-admin feedparser requests
+
+      - name: Run script
+        env:
+          # GitHub Secrets에 저장한 값을 환경 변수로 불러옵니다.
+          FIREBASE_CONFIG: ${{ secrets.FIREBASE_CONFIG }}
+          NAVER_CLIENT_ID: ${{ secrets.NAVER_CLIENT_ID }}
+          NAVER_CLIENT_SECRET: ${{ secrets.NAVER_CLIENT_SECRET }}
+        run: python backend/main.py
