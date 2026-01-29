@@ -42,12 +42,12 @@ next-env.d.ts
 
 # --- Python Backend ---
 .venv/
+venv/
 __pycache__/
 *.py[cod]
 
-# --- Firebase Security (가장 중요) ---
+# --- Firebase & Env ---
 serviceAccount.json
-
-# 
 .env
+.env.local
 backend/.env
