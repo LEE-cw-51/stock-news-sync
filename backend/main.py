@@ -14,18 +14,25 @@ if root_dir not in sys.path:
     sys.path.append(root_dir)
 
 # ==========================================
-# 2. Import (이제 'backend.'으로 시작 가능)
+# 2. Import
 # ==========================================
 import time
 from datetime import datetime
-from backend.config.tickers import NAME_MAP, US_CANDIDATES, KR_CANDIDATES
+
+# config에서 확장된 변수들을 가져옵니다.
+from backend.config.tickers import (
+    NAME_MAP, US_CANDIDATES, KR_CANDIDATES, 
+    MY_PORTFOLIO, WATCHLIST, MACRO_KEYWORDS
+)
 from backend.services.db_service import DBService
 from backend.services.market_service import get_market_indices, get_top_volume_stocks
 from backend.services.news_service import get_google_news, get_naver_news
+from backend.services.ai_service import generate_summary
 
 def run_sync_engine_once():
     """
     전체 데이터 동기화 프로세스를 실행하는 메인 엔진
+    (거시경제 + 포트폴리오 + 관심종목 통합 뉴스 요약 반영)
     """
     print(f"🚀 [Start] Data Sync Initiated at {datetime.now()}")
     
@@ -34,7 +41,9 @@ def run_sync_engine_once():
         db_svc = DBService()
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # 2. [A] 지수 및 주요 지표 업데이트
+        # ---------------------------------------------------------
+        # [A] 지수 및 주요 지표 업데이트 (기존 로직 유지)
+        # ---------------------------------------------------------
         indices_config = {
             "market_indices/domestic": { "KOSPI": "^KS11", "KOSDAQ": "^KQ11" },
             "market_indices/global": { "S&P500": "^GSPC", "NASDAQ": "^IXIC" },
@@ -53,46 +62,104 @@ def run_sync_engine_once():
                 updates[key]["updated_at"] = now_str
             db_svc.update_market_indices(path, updates)
 
-        # 3. [B] 종목별 주가 및 뉴스 업데이트
-        print("🔍 Fetching top volume stocks...")
-        us_stocks = get_top_volume_stocks(US_CANDIDATES, 10)
-        kr_stocks = get_top_volume_stocks(KR_CANDIDATES, 10)
+        # ---------------------------------------------------------
+        # [B] 뉴스 수집 및 카테고리 분류
+        # ---------------------------------------------------------
+        print("🔍 Collecting News & Stocks...")
         
-        final_feed = {}
-        combined_list = us_stocks + kr_stocks
+        # 뉴스 데이터를 담을 버킷
+        news_bucket = {
+            "macro": [],
+            "portfolio": [],
+            "watchlist": []
+        }
 
-        for item in combined_list:
+        # 1. 거시경제 뉴스 수집
+        for keyword in MACRO_KEYWORDS:
+            title, link = get_google_news(keyword)
+            if link:
+                news_bucket["macro"].append({"title": title, "link": link, "keyword": keyword})
+                print(f"   🌐 [Macro] {keyword}: {title[:20]}...")
+
+        # 2. 종목 데이터 수집 (거래량 상위)
+        us_stocks = get_top_volume_stocks(US_CANDIDATES, 15) # 조금 더 많이 수집
+        kr_stocks = get_top_volume_stocks(KR_CANDIDATES, 15)
+        combined_stocks = us_stocks + kr_stocks
+        
+        stock_data_map = {} # 주가 정보 저장용 (Symbol -> Data)
+
+        for item in combined_stocks:
             symbol = item['symbol']
-            # tickers.py의 상세 정보 가져오기
+            
+            # config/tickers.py의 정보 가져오기
             info = NAME_MAP.get(symbol, {"name": symbol, "sector": "기타"})
             company_name = info['name']
             
-            # 국가 판별 및 뉴스 소스 선택
-            is_us = symbol in US_CANDIDATES
-            if is_us:
-                news_title, news_url = get_google_news(company_name)
-            else:
-                news_title, news_url = get_naver_news(company_name)
-            
-            # Firebase 키 안전 문자열 처리
+            # 주가 데이터 정리
             safe_key = symbol.replace(".", "_")
-            
-            final_feed[safe_key] = {
-                "company_name": company_name,
-                "sector": info.get('sector', '미분류'),
+            stock_data_map[safe_key] = {
+                "symbol": symbol,
+                "name": company_name,
                 "price": round(item['price'], 2),
-                "volume": int(item['volume']),
                 "change_percent": item['change_percent'],
-                "news_title": news_title,
-                "news_url": news_url,
-                "country": "US" if is_us else "KR",
-                "updated_at": now_str
+                "volume": int(item['volume']),
+                "sector": info.get('sector', '미분류'),
+                "country": "US" if symbol in US_CANDIDATES else "KR"
             }
-            print(f"   👉 [{'US' if is_us else 'KR'}] {company_name}: {news_title[:25]}...")
-            time.sleep(0.1) # API 과부하 방지
 
-        # 4. 최종 데이터 저장
-        db_svc.save_final_feed(final_feed)
+            # 뉴스 가져오기 (내 포트폴리오나 관심종목에 속한 경우만 분류)
+            is_portfolio = symbol in MY_PORTFOLIO
+            is_watchlist = symbol in WATCHLIST
+
+            if is_portfolio or is_watchlist:
+                if symbol in US_CANDIDATES:
+                    title, link = get_google_news(company_name)
+                else:
+                    title, link = get_naver_news(company_name)
+                
+                news_item = {
+                    "title": title, 
+                    "link": link, 
+                    "symbol": symbol, 
+                    "name": company_name,
+                    "updated_at": now_str
+                }
+
+                if is_portfolio:
+                    news_bucket["portfolio"].append(news_item)
+                    print(f"   💰 [My Asset] {company_name}: {title[:20]}...")
+                elif is_watchlist:
+                    news_bucket["watchlist"].append(news_item)
+                    print(f"   👀 [Watch] {company_name}: {title[:20]}...")
+            
+            time.sleep(0.1) # API 부하 방지
+
+        # ---------------------------------------------------------
+        # [C] AI 요약 생성 (3단계)
+        # ---------------------------------------------------------
+        print("🧠 Generating AI Summaries...")
+        
+        ai_summaries = {
+            "macro": generate_summary("글로벌 거시경제", news_bucket["macro"]),
+            "portfolio": generate_summary("내 포트폴리오", news_bucket["portfolio"]),
+            "watchlist": generate_summary("관심 종목", news_bucket["watchlist"])
+        }
+
+        # ---------------------------------------------------------
+        # [D] 최종 데이터 구조화 및 저장
+        # ---------------------------------------------------------
+        final_data = {
+            "updated_at": now_str,
+            "ai_summaries": ai_summaries,     # AI 3줄 요약 텍스트들
+            "news_feed": news_bucket,         # 카테고리별 원본 뉴스 링크들
+            "stock_data": stock_data_map,     # 전체 주가 정보
+            "portfolio_list": list(MY_PORTFOLIO.keys()), # 내 보유 종목 코드 리스트
+            "watchlist_list": list(WATCHLIST.keys())     # 관심 종목 코드 리스트
+        }
+
+        # 기존 sync_feed 경로에 덮어쓰기 (프론트엔드에서 이 구조로 읽어야 함)
+        db_svc.save_final_feed(final_data)
+        
         print(f"✅ [Success] Sync Complete at {now_str}")
 
     except Exception as e:

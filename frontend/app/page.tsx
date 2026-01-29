@@ -3,16 +3,15 @@
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { ref, onValue } from "firebase/database";
-import { Activity, Zap } from "lucide-react";
-
-const getChangeColor = (value: number) => {
-  if (value > 0) return "text-red-500";
-  if (value < 0) return "text-blue-500";
-  return "text-slate-500";
-};
+import { 
+  Activity, LayoutDashboard, Newspaper, TrendingUp, Zap, 
+  Globe, Briefcase, Star, PlusCircle, Search, ArrowUpRight 
+} from "lucide-react";
+import AdBanner from "@/components/AdBanner";
 
 export default function Dashboard() {
   const [data, setData] = useState<any>(null);
+  const [activeTab, setActiveTab] = useState<'portfolio' | 'news'>('portfolio');
 
   useEffect(() => {
     const rootRef = ref(db, "/");
@@ -23,137 +22,197 @@ export default function Dashboard() {
   }, []);
 
   if (!data) return (
-    <div className="flex h-screen items-center justify-center bg-slate-900 text-white">
-      <div className="flex flex-col items-center gap-4">
-        <Activity className="animate-spin text-blue-500" size={48} />
-        <p className="font-mono tracking-widest text-sm text-slate-400">CONNECTING TO ENGINE...</p>
-      </div>
+    <div className="flex h-screen items-center justify-center bg-slate-950 text-blue-500">
+      <Activity className="animate-spin" size={48} />
     </div>
   );
 
-  const allStocks = Object.entries(data.sync_feed || {}).map(([symbol, item]: any) => ({
-    symbol: symbol.replace("_", "."),
-    ...item
-  }));
-  
-  // 거래량 순 정렬
-  const usStocks = allStocks.filter(s => s.country === 'US').sort((a, b) => b.volume - a.volume);
-  const krStocks = allStocks.filter(s => s.country === 'KR').sort((a, b) => b.volume - a.volume);
+  // ==================================================================
+  // [구조 일치] 백엔드와 1:1 매칭되는 데이터 구조 정의
+  // ==================================================================
+  const market_indices = data.market_indices || {};
+  const key_indicators = data.key_indicators || {};
+  const stock_data = data.stock_data || {};
+  const ai_summaries = data.ai_summaries || {};
+  const portfolio_list = data.portfolio_list || [];
+  const watchlist_list = data.watchlist_list || [];
+  const news_feed = data.news_feed || { portfolio: [], watchlist: [], macro: [] };
+
+  // 지표 리스트 준비
+  const macroList = Object.entries(key_indicators);
+  const indexList = [
+    ...Object.entries(market_indices.domestic || {}),
+    ...Object.entries(market_indices.global || {})
+  ];
+
+  // 종목 상세 정보 매핑
+  const mapStockDetails = (list: string[]) => list.map(symbol => {
+    const safeKey = symbol.replace(".", "_");
+    return stock_data[safeKey] || { symbol, name: symbol, price: 0, change_percent: 0 };
+  });
+
+  const myPortfolioStocks = mapStockDetails(portfolio_list);
+  const watchListStocks = mapStockDetails(watchlist_list);
+  const allNews = [...(news_feed.portfolio || []), ...(news_feed.watchlist || [])];
 
   return (
-    <main className="min-h-screen bg-slate-950 text-slate-200 p-4 font-sans selection:bg-blue-500/30">
+    <main className="min-h-screen bg-slate-950 text-slate-200 font-sans">
       
-      {/* 1. 상단 지표 바 */}
-      <div className="flex gap-4 overflow-x-auto pb-4 mb-4 border-b border-slate-800 no-scrollbar">
-        {Object.entries(data.key_indicators || {}).map(([name, val]: any) => (
-          <div key={name} className="flex items-center gap-3 whitespace-nowrap bg-slate-900 px-4 py-2 rounded-lg border border-slate-800">
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{name}</span>
-            <span className="font-mono font-bold text-sm text-blue-100">{val.price.toLocaleString()}</span>
-            <span className={`text-[10px] font-bold ${getChangeColor(val.change_percent)}`}>
-              {val.change_percent > 0 ? "+" : ""}{val.change_percent}%
-            </span>
-          </div>
-        ))}
+      {/* 1. 상단 광고 배너 */}
+      <div className="bg-slate-950 py-4 flex justify-center border-b border-slate-900">
+        <AdBanner type="top-banner" />
       </div>
 
-      {/* 2. 주요 지수 */}
-      <div className="flex gap-4 overflow-x-auto pb-6 mb-8 no-scrollbar">
-        {[
-          ...Object.entries(data.market_indices?.global || {}),
-          ...Object.entries(data.market_indices?.domestic || {})
-        ].map(([name, val]: any) => (
-          <div key={name} className="flex-1 min-w-[160px] bg-gradient-to-br from-slate-900 to-slate-900/50 p-4 rounded-xl border border-slate-700/50 shadow-lg hover:border-slate-600 transition-all">
-            <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">{name.replace("_", " ")}</div>
-            <div className="flex justify-between items-end">
-              <span className="text-xl font-bold tracking-tight text-white">{val.price.toLocaleString()}</span>
-              <span className={`text-xs font-bold ${getChangeColor(val.change_percent)}`}>
-                {val.change_percent > 0 ? "▲" : "▼"} {Math.abs(val.change_percent)}%
-              </span>
+      {/* 2. 2단 지표 바 (Sticky) */}
+      <header className="sticky top-0 z-40 bg-slate-950/95 backdrop-blur-md border-b border-slate-800 shadow-xl">
+        {/* 1층: MACRO 지표 */}
+        <div className="border-b border-slate-800/50">
+          <div className="max-w-7xl mx-auto px-4 h-12 flex items-center gap-6 overflow-x-auto no-scrollbar">
+            <div className="flex-shrink-0 flex items-center gap-2 text-indigo-400 font-black text-[11px] border-r border-slate-800 pr-4 uppercase tracking-widest">
+              <Globe size={14} /> Macro
+            </div>
+            <div className="flex items-center gap-8">
+              {macroList.map(([name, val]: any) => (
+                <div key={name} className="flex-shrink-0 flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">{name}</span>
+                  <span className="font-mono text-sm font-bold text-white">{val.price?.toLocaleString() || val.price}</span>
+                  <span className={`text-[10px] font-bold ${val.change_percent > 0 ? "text-red-400" : "text-blue-400"}`}>
+                    {val.change_percent > 0 ? "▲" : "▼"}{Math.abs(val.change_percent)}%
+                  </span>
+                </div>
+              ))}
             </div>
           </div>
-        ))}
-      </div>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+        {/* 2층: MARKET 지수 */}
+        <div>
+          <div className="max-w-7xl mx-auto px-4 h-10 flex items-center gap-6 overflow-x-auto no-scrollbar">
+            <div className="flex-shrink-0 flex items-center gap-2 text-slate-500 font-black text-[11px] border-r border-slate-800 pr-4 uppercase tracking-widest">
+              <Activity size={14} /> Market
+            </div>
+            <div className="flex items-center gap-6">
+              {indexList.map(([name, val]: any) => (
+                <div key={name} className="flex-shrink-0 flex items-center gap-2">
+                  <span className="text-[10px] text-slate-500 font-bold uppercase">{name}</span>
+                  <span className="font-mono text-sm font-bold text-slate-300">{val.price?.toLocaleString()}</span>
+                  <span className={`text-[10px] ${val.change_percent > 0 ? "text-red-400" : "text-blue-400"}`}>
+                    ({val.change_percent > 0 ? "+" : ""}{val.change_percent}%)
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* 3. 본문 레이아웃 (광고-컨텐츠-광고) */}
+      <div className="flex justify-center gap-8 px-4 mt-8">
         
-        {/* 3. 미국 시장 섹션 */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 mb-4">
-             <div className="w-1 h-6 bg-indigo-500 rounded-full"></div>
-             <h2 className="text-xl font-black italic tracking-tighter uppercase text-slate-100">United States</h2>
-          </div>
-          <div className="flex flex-col gap-4">
-            {usStocks.map((stock) => (
-              <div key={stock.symbol} className="bg-slate-900 p-5 rounded-xl border border-slate-800 hover:border-indigo-500/40 transition-all group">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    {/* ⭐️ 이름(큰글씨) + 티커(작은글씨) 구조 */}
-                    <div className="text-lg font-bold text-indigo-100 leading-tight">
-                        {stock.company_name || stock.symbol} 
-                    </div>
-                    <div className="text-xs font-bold text-slate-500 mt-1">{stock.symbol}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-lg text-white">{stock.price.toLocaleString()}</div>
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-950 ${getChangeColor(stock.change_percent)}`}>
-                      {stock.change_percent > 0 ? "+" : ""}{stock.change_percent}%
-                    </span>
-                  </div>
-                </div>
-                
-                {/* 뉴스 영역 */}
-                <div className="relative pl-3 border-l-2 border-slate-700 hover:border-indigo-500 transition-colors">
-                    <div className="text-[9px] text-slate-500 font-bold uppercase mb-1 flex items-center gap-1">
-                        <Zap size={10} className="text-yellow-500" /> Hot Topic
-                    </div>
-                    <a href={stock.news_url} target="_blank" className="text-sm text-slate-300 font-medium hover:text-indigo-400 line-clamp-1 transition-colors block">
-                        {stock.news_title}
-                    </a>
-                </div>
+        {/* 왼쪽 사이드 광고 */}
+        <aside className="hidden 2xl:block w-[160px] flex-shrink-0">
+          <div className="sticky top-32"><AdBanner type="side-banner" /></div>
+        </aside>
+
+        {/* 본문 영역 */}
+        <div className="w-full max-w-7xl flex flex-col md:flex-row gap-8 pb-32">
+          
+          {/* LEFT: Portfolio & Watchlist */}
+          <section className="md:w-[40%] space-y-6">
+            <div className="bg-slate-900 rounded-3xl p-8 border border-slate-800 shadow-2xl">
+              <h2 className="text-xl font-black italic text-blue-400 mb-8 flex items-center gap-2 uppercase tracking-tighter">
+                <Briefcase size={20} /> My Portfolio
+              </h2>
+              <div className="border-b border-slate-800 pb-6 mb-6">
+                <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-1">Total Balance</p>
+                <p className="text-4xl font-black text-white tracking-tighter">₩ 142,500,000</p>
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* 4. 한국 시장 섹션 */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 mb-4">
-             <div className="w-1 h-6 bg-red-500 rounded-full"></div>
-             <h2 className="text-xl font-black italic tracking-tighter uppercase text-slate-100">Korea</h2>
-          </div>
-          <div className="flex flex-col gap-4">
-            {krStocks.map((stock) => (
-              <div key={stock.symbol} className="bg-slate-900 p-5 rounded-xl border border-slate-800 hover:border-red-500/40 transition-all group">
-                <div className="flex justify-between items-start mb-3">
-                  <div>
-                    {/* ⭐️ 이름(큰글씨) + 티커(작은글씨) 구조 */}
-                    <div className="text-lg font-bold text-red-100 leading-tight">
-                        {stock.company_name || stock.symbol}
+              <div className="space-y-4">
+                {myPortfolioStocks.map((stock: any) => (
+                  <div key={stock.symbol} className="flex justify-between items-center group cursor-pointer">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-400 group-hover:border-blue-500 transition-colors">
+                        {stock.symbol[0]}
+                      </div>
+                      <div>
+                        <div className="text-sm font-bold text-slate-200">{stock.name}</div>
+                        <div className="text-[10px] text-slate-500 font-mono tracking-tight">{stock.symbol}</div>
+                      </div>
                     </div>
-                    <div className="text-xs font-bold text-slate-500 mt-1">{stock.symbol}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="font-mono font-bold text-lg text-white">{stock.price.toLocaleString()}</div>
-                    <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-slate-950 ${getChangeColor(stock.change_percent)}`}>
-                      {stock.change_percent > 0 ? "+" : ""}{stock.change_percent}%
-                    </span>
-                  </div>
-                </div>
-
-                {/* 뉴스 영역 */}
-                <div className="relative pl-3 border-l-2 border-slate-700 hover:border-red-500 transition-colors">
-                    <div className="text-[9px] text-slate-500 font-bold uppercase mb-1 flex items-center gap-1">
-                        <Zap size={10} className="text-yellow-500" /> Hot Topic
+                    <div className="text-right">
+                      <div className="text-sm font-mono font-bold text-slate-300">{stock.price?.toLocaleString()}</div>
+                      <div className={`text-[10px] font-black ${stock.change_percent > 0 ? "text-red-400" : "text-blue-400"}`}>{stock.change_percent}%</div>
                     </div>
-                    <a href={stock.news_url} target="_blank" className="text-sm text-slate-300 font-medium hover:text-red-400 line-clamp-1 transition-colors block">
-                        {stock.news_title}
-                    </a>
-                </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </section>
+            </div>
 
+            <div className="bg-slate-900 rounded-3xl p-8 border border-slate-800">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
+                <Star size={14} className="text-emerald-500 fill-emerald-500" /> Watchlist
+              </h3>
+              <div className="space-y-3">
+                {watchListStocks.map((stock: any) => (
+                  <div key={stock.symbol} className="flex justify-between items-center p-4 bg-slate-950/50 rounded-2xl border border-slate-800/50 hover:border-slate-600 transition-all">
+                    <span className="font-bold text-slate-200 text-sm">{stock.name}</span>
+                    <span className="font-mono text-sm font-bold text-slate-300">{stock.price?.toLocaleString()}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* RIGHT: AI Insight & News */}
+          <section className="md:w-[60%] space-y-6">
+            <div className="bg-gradient-to-br from-indigo-900/40 to-slate-950 p-8 rounded-3xl border border-indigo-500/20 shadow-2xl relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-8 opacity-10"><Zap size={100} className="text-indigo-400" /></div>
+              <h2 className="text-indigo-400 font-black italic text-xl mb-6 flex items-center gap-2 uppercase tracking-tighter relative z-10">
+                <Zap size={22} className="fill-indigo-400" /> Global Macro Insight
+              </h2>
+              <div className="text-slate-300 text-sm leading-8 whitespace-pre-wrap font-medium relative z-10">
+                {ai_summaries.macro || "브리핑을 생성하는 중입니다..."}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800">
+                <h3 className="text-blue-400 font-bold text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2"><Briefcase size={14} /> Asset Analysis</h3>
+                <div className="text-slate-400 text-xs leading-6">{ai_summaries.portfolio || "분석 대기"}</div>
+              </div>
+              <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800">
+                <h3 className="text-emerald-400 font-bold text-[10px] uppercase tracking-widest mb-4 flex items-center gap-2"><Star size={14} /> Watchlist Trends</h3>
+                <div className="text-slate-400 text-xs leading-6">{ai_summaries.watchlist || "분석 대기"}</div>
+              </div>
+            </div>
+
+            <AdBanner type="in-feed" />
+
+            <div className="space-y-4 pt-4">
+              <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Latest Market Headlines</h3>
+              {allNews.map((news: any, idx) => (
+                <div key={idx} className="group bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1 pr-4">
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="px-2 py-0.5 bg-slate-800 rounded text-[9px] text-slate-500 font-black uppercase tracking-widest">{news.name}</span>
+                      </div>
+                      <a href={news.link} target="_blank" className="text-sm font-bold text-slate-200 group-hover:text-blue-400 transition-colors leading-relaxed block">
+                        {news.title}
+                      </a>
+                    </div>
+                    <ArrowUpRight size={20} className="text-slate-700 group-hover:text-white transition-colors shrink-0 mt-1" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* 오른쪽 사이드 광고 */}
+        <aside className="hidden 2xl:block w-[160px] flex-shrink-0">
+          <div className="sticky top-32"><AdBanner type="side-banner" /></div>
+        </aside>
       </div>
     </main>
   );
