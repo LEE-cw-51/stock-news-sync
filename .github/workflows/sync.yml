@@ -19,7 +19,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install yfinance firebase-admin feedparser requests
+          pip install -r backend/requirements.txt
 
       - name: Run script
         env:

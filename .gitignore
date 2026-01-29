@@ -47,3 +47,7 @@ __pycache__/
 
 # --- Firebase Security (가장 중요) ---
 serviceAccount.json
+
+# 
+.env
+backend/.env
