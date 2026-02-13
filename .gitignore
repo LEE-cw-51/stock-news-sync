@@ -50,4 +50,9 @@ __pycache__/
 serviceAccount.json
 .env
 .env.local
+.env.production
+.env.development
+.env.*.local
 backend/.env
+**/serviceAccount.json
+**/*.json

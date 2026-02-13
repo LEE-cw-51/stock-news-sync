@@ -1,20 +1,20 @@
-// lib/firebase.ts
-import { initializeApp, getApps } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { initializeApp, getApps, getApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCI7b_yhFYjeVucGefA96rmoh_IM_fH3XM",
-  authDomain: "stock-news-sync.firebaseapp.com",
-  databaseURL: "https://stock-news-sync-default-rtdb.firebaseio.com",
-  projectId: "stock-news-sync",
-  storageBucket: "stock-news-sync.firebasestorage.app",
-  messagingSenderId: "618499401683",
-  appId: "1:618499401683:web:59cb2e07b43234717f7126",
-  measurementId: "G-8XKL7JZW8N"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
-// 앱이 중복 초기화되지 않도록 방지하는 코드
-const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
-const db = getDatabase(app);
+const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-export { db };
+const auth = getAuth(app);
+const db = getFirestore(app);
+const googleProvider = new GoogleAuthProvider();
+
+export { auth, db, googleProvider, signInWithPopup, signOut };
