@@ -1,6 +1,6 @@
 import { initializeApp, getApps, getApp } from "firebase/app";
 import { getAuth, GoogleAuthProvider, signInWithPopup, signOut } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { getDatabase } from "firebase/database"; // Firestore 대신 Database 임포트
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -11,10 +11,11 @@ const firebaseConfig = {
   appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
 };
 
+// 앱이 이미 초기화되었는지 확인 후 초기화 (Next.js 환경 이슈 방지)
 const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
 const auth = getAuth(app);
-const db = getFirestore(app);
+const db = getDatabase(app); // getFirestore() 대신 getDatabase() 사용
 const googleProvider = new GoogleAuthProvider();
 
 export { auth, db, googleProvider, signInWithPopup, signOut };
