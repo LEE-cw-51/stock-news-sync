@@ -3,168 +3,135 @@ import os
 import time
 from datetime import datetime
 
-# ==========================================
-# 1. 경로 설정 (기존 유지)
-# ==========================================
+# 1. 경로 설정
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
-
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
-# ==========================================
-# 2. Import
-# ==========================================
 from dotenv import load_dotenv
-load_dotenv() # 환경변수 로드
+load_dotenv()
 
-# 기존 설정 파일 가져오기
 from backend.config.tickers import (
     NAME_MAP, US_CANDIDATES, KR_CANDIDATES, 
     MY_PORTFOLIO, WATCHLIST, MACRO_KEYWORDS
 )
 from backend.services.db_service import DBService
 from backend.services.market_service import get_market_indices, get_top_volume_stocks
-
-# [변경] 새로운 서비스로 교체 (Tavily, Groq)
 from backend.services.news_service import get_tavily_news
 from backend.services.ai_service import generate_ai_summary
 
 def run_sync_engine_once():
-    """
-    통합 엔진: 시장 지수 + 주가 데이터 + RAG 기반 뉴스 요약
-    """
-    print(f"🚀 [Start] Data Sync Initiated at {datetime.now()}")
+    print(f"🚀 [Start] Data Sync at {datetime.now()}")
     
     try:
-        # 1. DB 서비스 초기화
         db_svc = DBService()
         now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-        # ---------------------------------------------------------
-        # [A] 지수 및 주요 지표 업데이트 (기존 로직 100% 유지)
-        # ---------------------------------------------------------
+        # [A] 지수 및 주요 지표 업데이트 (기존 유지)
         indices_config = {
             "market_indices/domestic": { "KOSPI": "^KS11", "KOSDAQ": "^KQ11" },
             "market_indices/global": { "S&P500": "^GSPC", "NASDAQ": "^IXIC" },
             "key_indicators": { 
-                "USD_KRW": "USDKRW=X", 
-                "US_10Y": "^TNX", 
-                "BTC": "BTC-USD", 
-                "Gold": "GC=F" 
+                "USD_KRW": "USDKRW=X", "US_10Y": "^TNX", "BTC": "BTC-USD", "Gold": "GC=F" 
             }
         }
-
         for path, items in indices_config.items():
-            print(f"📊 Updating {path}...")
             updates = get_market_indices(items)
-            for key in updates:
-                updates[key]["updated_at"] = now_str
+            for key in updates: updates[key]["updated_at"] = now_str
             db_svc.update_market_indices(path, updates)
 
-        # ---------------------------------------------------------
-        # [B] 뉴스 수집 및 주가 데이터 처리 (Tavily 적용)
-        # ---------------------------------------------------------
-        print("🔍 Collecting News (Tavily) & Stocks...")
+        # [B] 뉴스 데이터 수집 및 구조화
+        # 프론트엔드가 요구하는 구조: { portfolio: [뉴스들...], watchlist: [뉴스들...] }
+        frontend_feed = { "portfolio": [], "watchlist": [], "macro": [] }
         
-        # 프론트엔드에 보여줄 링크 모음
-        news_bucket = { "macro": [], "portfolio": [], "watchlist": [] }
-        
-        # AI에게 먹여줄 텍스트 모음 (Context Accumulator)
+        # AI 요약용 텍스트 저장소
         ai_contexts = { "macro": "", "portfolio": "", "watchlist": "" }
 
-        # 1. 거시경제 뉴스 (Tavily)
+        # 1. 거시경제 뉴스 (Frontend는 현재 이 탭을 안 쓰지만 데이터는 확보)
         for keyword in MACRO_KEYWORDS:
-            # [변경] get_google_news -> get_tavily_news
             context, links = get_tavily_news(keyword)
             if context:
                 ai_contexts["macro"] += f"\n[Keyword: {keyword}]\n{context}\n"
-                news_bucket["macro"].extend(links)
-                print(f"   🌐 [Macro] {keyword}: 수집 완료")
-            time.sleep(1) # API 부하 조절
+                # Tavily 데이터 변환 (url -> link)
+                for item in links:
+                    news_item = {
+                        "title": item.get("title"),
+                        "link": item.get("url"),  # <--- [중요] 프론트엔드는 link를 원함
+                        "name": "Macro",          # 태그명
+                        "pubDate": item.get("published_date")
+                    }
+                    frontend_feed["macro"].append(news_item)
+            time.sleep(1)
 
-        # 2. 종목 데이터 수집 (기존 로직 유지 + Tavily 통합)
+        # 2. 종목 데이터 및 뉴스 수집
         us_stocks = get_top_volume_stocks(US_CANDIDATES, 15)
         kr_stocks = get_top_volume_stocks(KR_CANDIDATES, 15)
-        combined_stocks = us_stocks + kr_stocks
-        
         stock_data_map = {}
 
-        for item in combined_stocks:
+        for item in (us_stocks + kr_stocks):
             symbol = item['symbol']
             info = NAME_MAP.get(symbol, {"name": symbol, "sector": "기타"})
-            company_name = info['name']
-            
-            # 주가 데이터 정리 (기존 유지)
             safe_key = symbol.replace(".", "_")
+            
+            # 주가 정보 저장
             stock_data_map[safe_key] = {
-                "symbol": symbol,
-                "name": company_name,
-                "price": round(item['price'], 2),
-                "change_percent": item['change_percent'],
-                "volume": int(item['volume']),
-                "sector": info.get('sector', '미분류'),
-                "country": "US" if symbol in US_CANDIDATES else "KR"
+                "symbol": symbol, "name": info['name'], "price": round(item['price'], 2),
+                "change_percent": item['change_percent'], "volume": int(item['volume']),
+                "sector": info.get('sector', '미분류')
             }
 
-            # [변경] 내 종목인 경우 Tavily 검색 실행
-            is_portfolio = symbol in MY_PORTFOLIO
-            is_watchlist = symbol in WATCHLIST
+            # 내 종목(Portfolio/Watchlist)인 경우 뉴스 검색
+            category = None
+            if symbol in MY_PORTFOLIO: category = "portfolio"
+            elif symbol in WATCHLIST: category = "watchlist"
 
-            if is_portfolio or is_watchlist:
-                print(f"   🔎 Checking News for {company_name}...")
-                
-                # Tavily로 본문과 링크 가져오기
-                context, links = get_tavily_news(company_name)
-                
-                news_item = {
-                    "symbol": symbol, 
-                    "name": company_name,
-                    "links": links, # 여러 개의 링크가 들어감
-                    "updated_at": now_str
-                }
+            if category:
+                context, links = get_tavily_news(info['name'])
+                if context:
+                    ai_contexts[category] += f"\n[{info['name']}]\n{context}\n"
+                    
+                    # [핵심] 뉴스 리스트 평탄화 (Flatten) 및 필드명 변환
+                    for link_data in links:
+                        news_item = {
+                            "title": link_data.get("title"),
+                            "link": link_data.get("url"),  # <--- [중요] url을 link로 변환
+                            "name": info['name'],          # <--- [중요] 종목명 주입
+                            "pubDate": link_data.get("published_date")
+                        }
+                        frontend_feed[category].append(news_item)
+                time.sleep(1)
 
-                if is_portfolio:
-                    news_bucket["portfolio"].append(news_item)
-                    ai_contexts["portfolio"] += f"\n[{company_name}]\n{context}\n"
-                elif is_watchlist:
-                    news_bucket["watchlist"].append(news_item)
-                    ai_contexts["watchlist"] += f"\n[{company_name}]\n{context}\n"
-                
-                time.sleep(1) # Tavily API 속도 조절
-
-        # ---------------------------------------------------------
-        # [C] AI 요약 생성 (Groq RAG 적용)
-        # ---------------------------------------------------------
-        print("🧠 Generating AI Summaries (Groq RAG)...")
-        
-        # [변경] 단순 요약 -> 본문 기반 심층 요약
-        # 모아둔 context 텍스트를 한 번에 보내서 카테고리별 브리핑 생성
+        # [C] AI 요약 생성
+        print("🧠 Generating AI Summaries...")
         ai_summaries = {
-            "macro": generate_ai_summary("글로벌 거시경제", ai_contexts["macro"]),
-            "portfolio": generate_ai_summary("내 포트폴리오 종합", ai_contexts["portfolio"]),
-            "watchlist": generate_ai_summary("관심 종목 종합", ai_contexts["watchlist"])
+            "macro": generate_ai_summary("글로벌 경제", ai_contexts["macro"]),
+            "portfolio": generate_ai_summary("내 포트폴리오", ai_contexts["portfolio"]),
+            "watchlist": generate_ai_summary("관심 종목", ai_contexts["watchlist"])
         }
 
-        # ---------------------------------------------------------
-        # [D] 최종 데이터 구조화 및 저장 (기존 유지)
-        # ---------------------------------------------------------
+        # [D] 최종 데이터 저장
         final_data = {
             "updated_at": now_str,
-            "ai_summaries": ai_summaries,     # Groq이 만든 3줄 요약
-            "news_feed": news_bucket,         # Tavily가 찾은 링크들
-            "stock_data": stock_data_map,     # 야후 파이낸스 주가 정보
+            "ai_summaries": ai_summaries,
+            
+            # [수정 완료] 프론트엔드가 원하는 { portfolio: [], watchlist: [] } 구조
+            "news_feed": frontend_feed, 
+            
+            "stock_data": stock_data_map,
             "portfolio_list": list(MY_PORTFOLIO.keys()),
             "watchlist_list": list(WATCHLIST.keys())
         }
 
         db_svc.save_final_feed(final_data)
         
-        print(f"✅ [Success] Sync Complete at {now_str}")
+        # 로그 출력
+        p_count = len(frontend_feed['portfolio'])
+        w_count = len(frontend_feed['watchlist'])
+        print(f"✅ [Success] Sync Complete. News: Port({p_count}), Watch({w_count})")
 
     except Exception as e:
         print(f"❌ [Error] Critical failure: {e}")
-        # raise e # 배포 시에는 주석 해제 권장
 
 if __name__ == "__main__":
     run_sync_engine_once()
