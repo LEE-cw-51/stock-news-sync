@@ -1,49 +1,47 @@
 import os
-from openai import OpenAI
+from groq import Groq
 from dotenv import load_dotenv
 
 load_dotenv()
 
-# 호환성 모드로 Groq 연결
-groq_client = OpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=os.environ.get("GROQ_API_KEY")
-)
+# Groq 클라이언트 초기화
+client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-def generate_summary(category, news_items):
+def generate_ai_summary(stock_name, context):
     """
-    뉴스 리스트를 받아 Groq(Llama 3) 모델을 통해 3줄 요약을 생성합니다.
+    뉴스 본문(context)을 바탕으로 분석 리포트를 생성합니다.
     """
-    if not news_items:
-        return f"현재 {category} 관련 주요 뉴스가 없습니다."
+    if not context:
+        return "최근 24시간 내 관련된 중요 뉴스 데이터가 없습니다."
 
-    # 뉴스 제목 상위 5개 추출
-    news_text = "\n".join([f"- {item['title']}" for item in news_items[:5]])
-
-    system_prompt = f"""
-    당신은 '{category}' 전문 금융 전략가입니다.
-    제공된 뉴스 헤드라인들을 분석하여 투자자가 반드시 알아야 할 핵심을 요약하세요.
+    # 프롬프트 설계 (RAG 핵심)
+    system_prompt = "당신은 냉철한 팩트 기반의 주식 애널리스트입니다."
     
-    [규칙]
-    1. 반드시 한국어로 답변할 것.
-    2. 딱 3개의 문장(BULLET POINTS)으로 요약할 것.
-    3. '~함', '~임'과 같은 명사형 종결 어미를 사용할 것.
-    4. 투자 조언은 배제하고 시장의 팩트와 흐름 위주로 전달할 것.
-    """
+    user_prompt = f"""
+    [뉴스 데이터]
+    {context}
 
-    user_prompt = f"다음은 수집된 뉴스입니다:\n{news_text}\n\n이 뉴스들을 {category} 관점에서 3줄 브리핑해줘."
+    [임무]
+    위 뉴스들을 분석하여 '{stock_name}'에 대한 투자자용 브리핑을 작성하세요.
+    
+    [출력 양식]
+    1. 🔍 **핵심 요약**: 가장 중요한 이슈 3가지를 불렛포인트로 요약 (한국어).
+    2. 📊 **시장 반응**: 뉴스가 주가에 미칠 영향(호재/악재/중립)을 한 문장으로.
+
+    """
 
     try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+        completion = client.chat.completions.create(
+            model="llama-3.3-70b-versatile", # 성능 좋은 모델
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
-            temperature=0.4,
-            max_tokens=400,
+            temperature=0.2, # 사실 기반이므로 창의성(temperature)을 낮춤
+            max_tokens= 500
         )
-        return response.choices[0].message.content
+        return completion.choices[0].message.content
+
     except Exception as e:
-        print(f"⚠️ Groq Error ({category}): {e}")
-        return "데이터를 요약하는 중 오류가 발생했습니다."
+        print(f"   ⚠️ Groq 분석 실패: {e}")
+        return "AI 서비스 일시 장애로 요약을 생성할 수 없습니다."

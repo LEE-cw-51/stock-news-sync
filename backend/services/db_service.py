@@ -1,32 +1,54 @@
 import os
 import json
 import firebase_admin
-from firebase_admin import credentials, db
+from firebase_admin import credentials, db, firestore
 
 class DBService:
     def __init__(self):
         if not firebase_admin._apps:
-            firebase_json = os.environ.get('FIREBASE_CONFIG')
+            firebase_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
+            
             if firebase_json:
+                print("🔑 Loading Firebase creds from Environment Variable...")
                 cred = credentials.Certificate(json.loads(firebase_json))
             else:
-                # 파일명이 serviceAccount.json인지 serviceAccountKey.json인지 확인 필요
-                cred = credentials.Certificate("serviceAccount.json")
-            
+                print("🔑 Loading Firebase creds from Local File...")
+                
+                # 현재 파일 기준 상위 폴더(backend) 경로 계산
+                current_dir = os.path.dirname(os.path.abspath(__file__))
+                backend_dir = os.path.dirname(current_dir)
+                
+                # [수정] 파일 이름을 요청하신 대로 serviceAccount.json으로 설정
+                key_path = os.path.join(backend_dir, "serviceAccount.json")
+                
+                if not os.path.exists(key_path):
+                    raise FileNotFoundError(f"❌ 키 파일을 찾을 수 없습니다: {key_path}")
+                
+                cred = credentials.Certificate(key_path)
+
             firebase_admin.initialize_app(cred, {
                 'databaseURL': 'https://stock-news-sync-default-rtdb.firebaseio.com/'
             })
-        
-        # [수정 핵심] self.db에 firebase_admin의 db 모듈을 할당해야 합니다.
-        self.db = db
+
+        self.rt = db
+        self.fs = firestore.client()
 
     def update_market_indices(self, path, updates):
-        """시장 지수 및 거시경제 지표를 루트 하위에 각각 업데이트"""
-        # path 예: "market_indices/domestic"
-        self.db.reference(f"/{path}").update(updates)
+        try:
+            self.rt.reference(f"/{path}").update(updates)
+            print(f"📡 RTDB updated: {path}")
+        except Exception as e:
+            print(f"❌ RTDB Update Error ({path}): {e}")
 
     def save_final_feed(self, data):
-        """뉴스 및 AI 요약 데이터를 루트에 병합 업데이트"""
-        # 정확하게 루트('/') 경로를 사용하여 데이터 구조를 일치시킵니다.
-        self.db.reference("/").update(data)
-        print("📡 Data synced to Firebase root successfully.")
+        try:
+            # RTDB 업데이트
+            self.rt.reference("/").update(data)
+            print("📡 RTDB updated: / (Full Feed)")
+
+            # Firestore 업데이트
+            self.fs.collection('market_feeds').document('latest').set(data)
+            print("📁 Firestore updated: market_feeds/latest")
+            
+        except Exception as e:
+            print(f"❌ Save Final Feed Error: {e}")

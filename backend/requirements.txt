@@ -52,3 +52,5 @@ websockets==16.0
 yfinance==1.1.0
 python-dotenv==1.2.1
 openai
+tavily-python
+groq
