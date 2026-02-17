@@ -47,18 +47,24 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 3. 배포 패키지 생성 (Zip)
+      # 3. 배포 패키지 생성 (Zip) - 기존과 동일
       - name: Create Zip Package
         run: |
           cd backend/lib
           zip -r ../../deploy_package.zip .
           cd ../..
-          # 코드 파일들 추가 (config, services 포함)
           zip -g deploy_package.zip backend/*.py backend/config/*.py backend/services/*.py
 
-      # 4. AWS Lambda로 코드 업데이트
-      - name: Deploy to AWS Lambda
+      # 4. S3 업로드 및 Lambda 업데이트 (이 부분을 수정)
+      - name: Deploy to AWS Lambda via S3
+        env:
+          S3_BUCKET: "여기에_생성한_S3_버킷_이름_입력"
         run: |
+          # S3로 파일 복사
+          aws s3 cp deploy_package.zip s3://$S3_BUCKET/deploy_package.zip
+          
+          # S3에 있는 파일을 사용하여 Lambda 코드 업데이트
           aws lambda update-function-code \
             --function-name stock-news-sync \
-            --zip-file fileb://deploy_package.zip
+            --s3-bucket $S3_BUCKET \
+            --s3-key deploy_package.zip
