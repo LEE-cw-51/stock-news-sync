@@ -1,12 +1,12 @@
-name: Stock Data Sync
+name: Stock Data Sync & AWS Lambda Deploy
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # 10분마다 실행
+    - cron: '*/10 * * * *' # 10분마다 실행 (AWS EventBridge 설정 시 삭제 가능)
   workflow_dispatch:      # 수동 실행 버튼
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -17,15 +17,31 @@ jobs:
         with:
           python-version: '3.11'
 
+      # 1. 라이브러리 설치 및 압축 준비 (Lambda는 외부 라이브러리를 함께 묶어줘야 합니다)
       - name: Install dependencies
         run: |
-          pip install -r backend/requirements.txt
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt -t backend/lib
 
-      - name: Run script
-        env:
-          # [핵심] db_service.py 코드에서 사용하는 이름과 일치시킴
-          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
-          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
-          PYTHONPATH: .
-        run: python backend/main.py
+      # 2. AWS 자격 증명 설정 (GitHub Secrets에서 가져옴)
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2 # 본인이 설정한 리전 (서울: ap-northeast-2)
+
+      # 3. 배포 패키지 생성 (코드와 라이브러리를 하나로 압축)
+      - name: Create Zip Package
+        run: |
+          cd backend/lib
+          zip -r ../../deploy_package.zip .
+          cd ../..
+          zip -g deploy_package.zip backend/*.py backend/config/*.py backend/services/*.py
+
+      # 4. AWS Lambda로 코드 업데이트
+      - name: Deploy to AWS Lambda
+        run: |
+          aws lambda update-function-code \
+            --function-name stock-news-sync \
+            --zip-file fileb://deploy_package.zip

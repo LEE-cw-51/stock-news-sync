@@ -132,6 +132,19 @@ def run_sync_engine_once():
 
     except Exception as e:
         print(f"❌ [Error] Critical failure: {e}")
+        
+def lambda_handler(event, context):
+    print("🚀 AWS Lambda 환경에서 동기화 엔진을 시작합니다.")
+    try:
+        run_sync_engine_once()
+        return {
+            'statusCode': 200,
+            'body': '데이터 동기화 완료'
+        }
+    except Exception as e:
+        print(f"❌ 실행 실패: {e}")
+        raise e
+
 
 if __name__ == "__main__":
     run_sync_engine_once()
