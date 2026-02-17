@@ -3,8 +3,8 @@ name: Stock Data Sync & AWS Lambda Deploy
 on:
   push:
     branches:
-      - main  # 코드를 push 했을 때만 배포 실행
-  workflow_dispatch:  # 필요할 때 수동으로 버튼 눌러서 배포 실행
+      - main
+  workflow_dispatch:
 
 jobs:
   deploy:
@@ -18,26 +18,42 @@ jobs:
         with:
           python-version: '3.11'
 
-      # 1. 라이브러리 설치 및 압축 준비 (Lambda는 외부 라이브러리를 함께 묶어줘야 합니다)
+      # 1. 라이브러리 설치 및 "강력한" 경량화 작업
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r backend/requirements.txt -t backend/lib
+          # 기존 라이브러리 폴더 삭제 후 재생성
+          rm -rf backend/lib
+          mkdir -p backend/lib
+          
+          # Linux 환경에 최적화된 바이너리 설치 (Lambda 환경 호환성)
+          pip install -r backend/requirements.txt -t backend/lib --platform manylinux2014_x86_64 --only-binary=:all: --implementation cp --python-version 3.11 --upgrade
+          
+          # [용량 최적화 핵심] 불필요한 폴더 및 파일 강제 삭제
+          cd backend/lib
+          find . -type d -name "__pycache__" -exec rm -rf {} +
+          find . -type d -name "*.dist-info" -exec rm -rf {} +
+          find . -type d -name "tests" -exec rm -rf {} +
+          find . -type d -name "bin" -exec rm -rf {} +
+          
+          # AWS Lambda에 기본 내장된 boto3 관련 라이브러리 삭제 (용량 대폭 절감)
+          rm -rf boto3 botocore s3transfer
 
-      # 2. AWS 자격 증명 설정 (GitHub Secrets에서 가져옴)
+      # 2. AWS 자격 증명 설정
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-northeast-2 # 본인이 설정한 리전 (서울: ap-northeast-2)
+          aws-region: ap-northeast-2
 
-      # 3. 배포 패키지 생성 (코드와 라이브러리를 하나로 압축)
+      # 3. 배포 패키지 생성 (Zip)
       - name: Create Zip Package
         run: |
           cd backend/lib
           zip -r ../../deploy_package.zip .
           cd ../..
+          # 코드 파일들 추가 (config, services 포함)
           zip -g deploy_package.zip backend/*.py backend/config/*.py backend/services/*.py
 
       # 4. AWS Lambda로 코드 업데이트
