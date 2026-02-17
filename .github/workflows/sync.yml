@@ -1,9 +1,10 @@
 name: Stock Data Sync & AWS Lambda Deploy
 
 on:
-  schedule:
-    - cron: '*/10 * * * *' # 10분마다 실행 (AWS EventBridge 설정 시 삭제 가능)
-  workflow_dispatch:      # 수동 실행 버튼
+  push:
+    branches:
+      - main  # 코드를 push 했을 때만 배포 실행
+  workflow_dispatch:  # 필요할 때 수동으로 버튼 눌러서 배포 실행
 
 jobs:
   deploy:
