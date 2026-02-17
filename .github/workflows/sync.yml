@@ -58,7 +58,7 @@ jobs:
       # 4. S3 업로드 및 Lambda 업데이트 (이 부분을 수정)
       - name: Deploy to AWS Lambda via S3
         env:
-          S3_BUCKET: "여기에_생성한_S3_버킷_이름_입력"
+          S3_BUCKET: "my-stock-sync-deploy-bucket"
         run: |
           # S3로 파일 복사
           aws s3 cp deploy_package.zip s3://$S3_BUCKET/deploy_package.zip
