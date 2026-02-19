@@ -42,7 +42,7 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # # 3. 배포 패키지 생성 (🌟 최상위 경로 압축 방식으로 개선)
+      # 3. 배포 패키지 생성 (🌟 장기적 운영을 위한 정석: 폴더 구조 유지)
       - name: Create Zip Package with Firebase Key
         env:
           FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
@@ -50,13 +50,14 @@ jobs:
           # 1) JSON 파일 생성
           echo "$FIREBASE_JSON" > backend/serviceAccount.json
           
-          # 2) 라이브러리 압축 (기존과 동일하게 최상위로)
+          # 2) 라이브러리 압축 (Lambda 규칙에 맞게 최상위에 압축)
           cd backend/lib
           zip -r ../../deploy_package.zip .
+          cd ../..
           
-          # 3) 소스 코드 추가 압축 (🌟 핵심 변경점: backend 폴더 안에서 알맹이만 압축)
-          cd .. # 현재 위치를 backend/lib 에서 backend/ 로 이동
-          zip -g ../deploy_package.zip *.py config/*.py services/*.py *.json
+          # 3) 소스 코드는 'backend' 폴더 구조를 그대로 유지하며 추가 압축 (lib, pycache 제외)
+          zip -g -r deploy_package.zip backend/ -x "backend/lib/*" "backend/__pycache__/*"
+
       # 4. S3 업로드 및 Lambda 업데이트 (정석적인 Wait State 적용)
       - name: Deploy to AWS Lambda & Sync Config
         env:
