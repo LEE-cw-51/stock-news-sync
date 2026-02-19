@@ -22,21 +22,16 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          # 기존 라이브러리 폴더 삭제 후 재생성
           rm -rf backend/lib
           mkdir -p backend/lib
           
-          # Linux 환경에 최적화된 바이너리 설치 (Lambda 환경 호환성)
           pip install -r backend/requirements.txt -t backend/lib --platform manylinux2014_x86_64 --only-binary=:all: --implementation cp --python-version 3.11 --upgrade
           
-          # [용량 최적화 핵심] 불필요한 폴더 및 파일 강제 삭제
           cd backend/lib
           find . -type d -name "__pycache__" -exec rm -rf {} +
           find . -type d -name "*.dist-info" -exec rm -rf {} +
           find . -type d -name "tests" -exec rm -rf {} +
           find . -type d -name "bin" -exec rm -rf {} +
-          
-          # AWS Lambda에 기본 내장된 boto3 관련 라이브러리 삭제 (용량 대폭 절감)
           rm -rf boto3 botocore s3transfer
 
       # 2. AWS 자격 증명 설정
@@ -47,23 +42,19 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 3. 배포 패키지 생성 (🌟 핵심 수정 부분: JSON 파일 동적 생성)
+      # 3. 배포 패키지 생성 (JSON 파일 동적 생성 포함)
       - name: Create Zip Package with Firebase Key
         env:
           FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
-          # GitHub Secrets에 있는 긴 JSON 문자열을 backend 폴더 안에 실제 파일로 만듭니다.
           echo "$FIREBASE_JSON" > backend/serviceAccount.json
           
-          # 라이브러리 압축
           cd backend/lib
           zip -r ../../deploy_package.zip .
           cd ../..
-          
-          # 기존 파이썬 코드들과 방금 생성한 json 파일을 함께 압축
           zip -g deploy_package.zip backend/*.py backend/config/*.py backend/services/*.py backend/*.json
 
-      # 4. S3 업로드 및 Lambda 업데이트 (🌟 깔끔해진 환경 변수 주입)
+      # 4. S3 업로드 및 Lambda 업데이트 (정석적인 Wait State 적용)
       - name: Deploy to AWS Lambda & Sync Config
         env:
           S3_BUCKET: "my-stock-sync-deploy-bucket"
@@ -71,14 +62,18 @@ jobs:
           # 1) S3로 파일 복사
           aws s3 cp deploy_package.zip s3://$S3_BUCKET/deploy_package.zip
           
-          # 2) S3에 있는 파일을 사용하여 Lambda 코드 업데이트 (로그 숨김 처리)
+          # 2) 코드 업데이트
           aws lambda update-function-code \
             --function-name stock-news-sync \
             --s3-bucket $S3_BUCKET \
             --s3-key deploy_package.zip > /dev/null
+
+          # 🌟 [정석] 코드 업데이트가 완전히 반영될 때까지 대기
+          # ResourceConflictException을 방지하는 가장 전문적인 방법입니다.
+          echo "Waiting for Lambda function code update to complete..."
+          aws lambda wait function-updated --function-name stock-news-sync
           
-          # 3) 환경 변수 통합 업데이트
-          # 복잡한 JSON은 파일로 압축해 보냈으므로, 여기서는 깔끔하게 일반 API 키 2개만 주입합니다.
+          # 3) 환경 변수 업데이트
           aws lambda update-function-configuration \
             --function-name stock-news-sync \
             --environment "Variables={GROQ_API_KEY=${{ secrets.GROQ_API_KEY }},TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}}" > /dev/null
