@@ -47,15 +47,23 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 3. 배포 패키지 생성 (Zip) - 기존과 동일
-      - name: Create Zip Package
+      # 3. 배포 패키지 생성 (🌟 핵심 수정 부분: JSON 파일 동적 생성)
+      - name: Create Zip Package with Firebase Key
+        env:
+          FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
         run: |
+          # GitHub Secrets에 있는 긴 JSON 문자열을 backend 폴더 안에 실제 파일로 만듭니다.
+          echo "$FIREBASE_JSON" > backend/serviceAccount.json
+          
+          # 라이브러리 압축
           cd backend/lib
           zip -r ../../deploy_package.zip .
           cd ../..
-          zip -g deploy_package.zip backend/*.py backend/config/*.py backend/services/*.py
+          
+          # 기존 파이썬 코드들과 방금 생성한 json 파일을 함께 압축
+          zip -g deploy_package.zip backend/*.py backend/config/*.py backend/services/*.py backend/*.json
 
-      # 4. S3 업로드 및 Lambda 업데이트 (보안 및 자동화 강화 버전)
+      # 4. S3 업로드 및 Lambda 업데이트 (🌟 깔끔해진 환경 변수 주입)
       - name: Deploy to AWS Lambda & Sync Config
         env:
           S3_BUCKET: "my-stock-sync-deploy-bucket"
@@ -69,12 +77,8 @@ jobs:
             --s3-bucket $S3_BUCKET \
             --s3-key deploy_package.zip > /dev/null
           
-          # 3) 환경 변수(API 키 및 서비스 계정) 통합 업데이트
-          # GitHub Secrets의 값을 AWS Lambda 설정으로 전송합니다.
+          # 3) 환경 변수 통합 업데이트
+          # 복잡한 JSON은 파일로 압축해 보냈으므로, 여기서는 깔끔하게 일반 API 키 2개만 주입합니다.
           aws lambda update-function-configuration \
             --function-name stock-news-sync \
-            --environment "Variables={ \
-              GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}, \
-              TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}, \
-              FIREBASE_SERVICE_ACCOUNT='${{ secrets.FIREBASE_SERVICE_ACCOUNT }}' \
-            }" > /dev/null
+            --environment "Variables={GROQ_API_KEY=${{ secrets.GROQ_API_KEY }},TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}}" > /dev/null
