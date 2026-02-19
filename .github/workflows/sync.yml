@@ -25,13 +25,24 @@ jobs:
           rm -rf backend/lib
           mkdir -p backend/lib
           
-          pip install -r backend/requirements.txt -t backend/lib --platform manylinux2014_x86_64 --only-binary=:all: --implementation cp --python-version 3.11 --upgrade
-          
+          # curl_cffi 같은 바이너리 의존성 라이브러리를 위해 --no-binary 대신 
+          # Lambda 환경(manylinux)에 맞는 바이너리를 명시적으로 설치합니다.
+          pip install \
+            --platform manylinux2014_x86_64 \
+            --target backend/lib \
+            --implementation cp \
+            --python-version 3.11 \
+            --only-binary=:all: \
+            --upgrade \
+            -r backend/requirements.txt
+
+          # [추가] curl_cffi의 메타데이터 누락 방지를 위한 처리
+          # 일부 라이브러리는 .dist-info 폴더가 삭제되면 작동하지 않으므로, 
+          # 아까와 달리 삭제 목록에서 dist-info를 제외하거나 신중히 삭제합니다.
           cd backend/lib
           find . -type d -name "__pycache__" -exec rm -rf {} +
-          find . -type d -name "*.dist-info" -exec rm -rf {} +
+          # find . -type d -name "*.dist-info" -exec rm -rf {} + # <-- 이 줄을 주석 처리하거나 삭제하세요.
           find . -type d -name "tests" -exec rm -rf {} +
-          find . -type d -name "bin" -exec rm -rf {} +
           rm -rf boto3 botocore s3transfer
 
       # 2. AWS 자격 증명 설정
