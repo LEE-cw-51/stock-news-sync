@@ -53,21 +53,18 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ap-northeast-2
 
-      # 3. 배포 패키지 생성 (🌟 장기적 운영을 위한 정석: 폴더 구조 유지)
-      - name: Create Zip Package with Firebase Key
-        env:
-          FIREBASE_JSON: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+      # 3. 배포 패키지 생성 (폴더 구조 유지, 키 파일 제외)
+      - name: Create Zip Package
         run: |
-          # 1) JSON 파일 생성
-          echo "$FIREBASE_JSON" > backend/serviceAccount.json
-          
-          # 2) 라이브러리 압축 (Lambda 규칙에 맞게 최상위에 압축)
+          # 1) 라이브러리 압축 (Lambda 규칙에 맞게 최상위에 압축)
           cd backend/lib
           zip -r ../../deploy_package.zip .
           cd ../..
-          
-          # 3) 소스 코드는 'backend' 폴더 구조를 그대로 유지하며 추가 압축 (lib, pycache 제외)
-          zip -g -r deploy_package.zip backend/ -x "backend/lib/*" "backend/__pycache__/*"
+
+          # 2) 소스 코드는 'backend' 폴더 구조를 그대로 유지하며 추가 압축
+          #    (lib, pycache, serviceAccount.json 제외)
+          zip -g -r deploy_package.zip backend/ \
+            -x "backend/lib/*" "backend/__pycache__/*" "backend/serviceAccount.json"
 
       # 4. S3 업로드 및 Lambda 업데이트 (정석적인 Wait State 적용)
       - name: Deploy to AWS Lambda & Sync Config
@@ -88,7 +85,7 @@ jobs:
           echo "Waiting for Lambda function code update to complete..."
           aws lambda wait function-updated --function-name stock-news-sync
           
-          # 3) 환경 변수 업데이트
+          # 3) 환경 변수 업데이트 (Firebase 키는 환경변수로만 전달, 파일 포함 X)
           aws lambda update-function-configuration \
             --function-name stock-news-sync \
-            --environment "Variables={GROQ_API_KEY=${{ secrets.GROQ_API_KEY }},TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }}}" > /dev/null
+            --environment "Variables={GROQ_API_KEY=${{ secrets.GROQ_API_KEY }},TAVILY_API_KEY=${{ secrets.TAVILY_API_KEY }},FIREBASE_SERVICE_ACCOUNT=${{ secrets.FIREBASE_SERVICE_ACCOUNT }}}" > /dev/null

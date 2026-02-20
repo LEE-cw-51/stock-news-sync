@@ -3,19 +3,55 @@
 import { useEffect, useState } from "react";
 import { db } from "@/lib/firebase";
 import { ref, onValue } from "firebase/database";
-import { 
-  Activity, LayoutDashboard, Newspaper, TrendingUp, Zap, 
-  Globe, Briefcase, Star, PlusCircle, Search, ArrowUpRight 
+import {
+  Activity, LayoutDashboard, Newspaper, TrendingUp, Zap,
+  Globe, Briefcase, Star, PlusCircle, Search, ArrowUpRight
 } from "lucide-react";
 import AdBanner from "@/components/AdBanner";
 
+interface MarketValue {
+  price: number;
+  change_percent: number;
+  updated_at?: string;
+}
+
+interface StockData {
+  symbol: string;
+  name: string;
+  price: number;
+  change_percent: number;
+  volume?: number;
+  sector?: string;
+}
+
+interface NewsItem {
+  title: string;
+  link: string;
+  name: string;
+  pubDate?: string;
+}
+
+interface FeedData {
+  market_indices: {
+    domestic?: Record<string, MarketValue>;
+    global?: Record<string, MarketValue>;
+  };
+  key_indicators: Record<string, MarketValue>;
+  stock_data: Record<string, StockData>;
+  ai_summaries: { macro?: string; portfolio?: string; watchlist?: string };
+  portfolio_list: string[];
+  watchlist_list: string[];
+  news_feed: { portfolio: NewsItem[]; watchlist: NewsItem[]; macro: NewsItem[] };
+  updated_at: string;
+}
+
 export default function Dashboard() {
-  const [data, setData] = useState<any>(null);
+  const [data, setData] = useState<FeedData | null>(null);
   const [activeTab, setActiveTab] = useState<'portfolio' | 'news'>('portfolio');
 
   useEffect(() => {
-    const rootRef = ref(db, "/");
-    const unsubscribe = onValue(rootRef, (snapshot) => {
+    const feedRef = ref(db, "/feed");
+    const unsubscribe = onValue(feedRef, (snapshot) => {
       if (snapshot.exists()) setData(snapshot.val());
     });
     return () => unsubscribe();
@@ -46,7 +82,7 @@ export default function Dashboard() {
   ];
 
   // 종목 상세 정보 매핑
-  const mapStockDetails = (list: string[]) => list.map(symbol => {
+  const mapStockDetails = (list: string[]): StockData[] => list.map(symbol => {
     const safeKey = symbol.replace(".", "_");
     return stock_data[safeKey] || { symbol, name: symbol, price: 0, change_percent: 0 };
   });
@@ -72,7 +108,7 @@ export default function Dashboard() {
               <Globe size={14} /> Macro
             </div>
             <div className="flex items-center gap-8">
-              {macroList.map(([name, val]: any) => (
+              {macroList.map(([name, val]: [string, MarketValue]) => (
                 <div key={name} className="flex-shrink-0 flex items-center gap-2">
                   <span className="text-[10px] text-slate-500 font-bold uppercase">{name}</span>
                   <span className="font-mono text-sm font-bold text-white">{val.price?.toLocaleString() || val.price}</span>
@@ -92,7 +128,7 @@ export default function Dashboard() {
               <Activity size={14} /> Market
             </div>
             <div className="flex items-center gap-6">
-              {indexList.map(([name, val]: any) => (
+              {indexList.map(([name, val]: [string, MarketValue]) => (
                 <div key={name} className="flex-shrink-0 flex items-center gap-2">
                   <span className="text-[10px] text-slate-500 font-bold uppercase">{name}</span>
                   <span className="font-mono text-sm font-bold text-slate-300">{val.price?.toLocaleString()}</span>
@@ -128,7 +164,7 @@ export default function Dashboard() {
                 <p className="text-4xl font-black text-white tracking-tighter">₩ 142,500,000</p>
               </div>
               <div className="space-y-4">
-                {myPortfolioStocks.map((stock: any) => (
+                {myPortfolioStocks.map((stock) => (
                   <div key={stock.symbol} className="flex justify-between items-center group cursor-pointer">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-400 group-hover:border-blue-500 transition-colors">
@@ -153,7 +189,7 @@ export default function Dashboard() {
                 <Star size={14} className="text-emerald-500 fill-emerald-500" /> Watchlist
               </h3>
               <div className="space-y-3">
-                {watchListStocks.map((stock: any) => (
+                {watchListStocks.map((stock) => (
                   <div key={stock.symbol} className="flex justify-between items-center p-4 bg-slate-950/50 rounded-2xl border border-slate-800/50 hover:border-slate-600 transition-all">
                     <span className="font-bold text-slate-200 text-sm">{stock.name}</span>
                     <span className="font-mono text-sm font-bold text-slate-300">{stock.price?.toLocaleString()}</span>
@@ -190,8 +226,8 @@ export default function Dashboard() {
 
             <div className="space-y-4 pt-4">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">Latest Market Headlines</h3>
-              {allNews.map((news: any, idx) => (
-                <div key={idx} className="group bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
+              {allNews.map((news, idx) => (
+                <div key={`${news.link}-${idx}`} className="group bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
                   <div className="flex justify-between items-start">
                     <div className="flex-1 pr-4">
                       <div className="flex items-center gap-2 mb-2">

@@ -10,7 +10,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 # Groq 클라이언트 초기화
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+_groq_api_key = os.getenv("GROQ_API_KEY")
+client = Groq(api_key=_groq_api_key) if _groq_api_key else None
 
 # [확장성] 2026년 기준 가용 모델 리스트
 # 1순위 모델 실패 시 2순위로 자동 전환됩니다.
@@ -24,6 +25,10 @@ def generate_ai_summary(stock_name, context):
     뉴스 본문을 바탕으로 분석 리포트를 생성합니다.
     모델 폴백(Fallback) 기능을 통해 API 한도 및 서비스 중단에 대응합니다.
     """
+    if not client:
+        logger.warning("GROQ_API_KEY가 설정되지 않았습니다. AI 요약을 건너뜁니다.")
+        return "AI 서비스 키가 설정되지 않아 요약을 생성할 수 없습니다."
+
     if not context:
         return "최근 24시간 내 관련된 중요 뉴스 데이터가 없습니다."
 

@@ -1,33 +1,35 @@
 import os
 import json
+import logging
 import firebase_admin
 from firebase_admin import credentials, db, firestore
+
+logger = logging.getLogger(__name__)
 
 class DBService:
     def __init__(self):
         if not firebase_admin._apps:
             firebase_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
-            
+
             if firebase_json:
-                print("🔑 Loading Firebase creds from Environment Variable...")
+                logger.info("Loading Firebase creds from Environment Variable")
                 cred = credentials.Certificate(json.loads(firebase_json))
             else:
-                print("🔑 Loading Firebase creds from Local File...")
-                
-                # 현재 파일 기준 상위 폴더(backend) 경로 계산
+                logger.info("Loading Firebase creds from Local File")
                 current_dir = os.path.dirname(os.path.abspath(__file__))
                 backend_dir = os.path.dirname(current_dir)
-                
-                # [수정] 파일 이름을 요청하신 대로 serviceAccount.json으로 설정
                 key_path = os.path.join(backend_dir, "serviceAccount.json")
-                
+
                 if not os.path.exists(key_path):
-                    raise FileNotFoundError(f"❌ 키 파일을 찾을 수 없습니다: {key_path}")
-                
+                    raise FileNotFoundError(f"키 파일을 찾을 수 없습니다: {key_path}")
+
                 cred = credentials.Certificate(key_path)
 
             firebase_admin.initialize_app(cred, {
-                'databaseURL': 'https://stock-news-sync-default-rtdb.firebaseio.com/'
+                'databaseURL': os.environ.get(
+                    'FIREBASE_DATABASE_URL',
+                    'https://stock-news-sync-default-rtdb.firebaseio.com/'
+                )
             })
 
         self.rt = db
@@ -35,20 +37,22 @@ class DBService:
 
     def update_market_indices(self, path, updates):
         try:
-            self.rt.reference(f"/{path}").update(updates)
-            print(f"📡 RTDB updated: {path}")
+            self.rt.reference(f"/feed/{path}").update(updates)
+            logger.info("RTDB updated: /feed/%s", path)
         except Exception as e:
-            print(f"❌ RTDB Update Error ({path}): {e}")
+            logger.error("RTDB Update Error (/feed/%s): %s", path, e)
+            raise
 
     def save_final_feed(self, data):
         try:
-            # RTDB 업데이트
-            self.rt.reference("/").update(data)
-            print("📡 RTDB updated: / (Full Feed)")
+            # RTDB 업데이트 — update()로 기존 market_indices/key_indicators를 보존
+            self.rt.reference("/feed").update(data)
+            logger.info("RTDB updated: /feed")
 
             # Firestore 업데이트
             self.fs.collection('market_feeds').document('latest').set(data)
-            print("📁 Firestore updated: market_feeds/latest")
-            
+            logger.info("Firestore updated: market_feeds/latest")
+
         except Exception as e:
-            print(f"❌ Save Final Feed Error: {e}")
+            logger.error("Save Final Feed Error: %s", e)
+            raise

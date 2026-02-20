@@ -45,8 +45,8 @@ def extract_sectors(profile):
         if 'sector' in info:
             sectors.add(info['sector'])
             
-    # 토큰 절약을 위해 최대 3개까지만 중요 섹터로 선정
-    return list(sectors)[:3]
+    # 토큰 절약을 위해 최대 3개까지만 중요 섹터로 선정 (정렬하여 일관된 순서 보장)
+    return sorted(sectors)[:3]
 
 def generate_keywords(profile, sectors):
     """최적화된 AI 검색 키워드를 생성합니다."""
