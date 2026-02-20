@@ -88,25 +88,9 @@ jobs:
           aws lambda wait function-updated --function-name stock-news-sync
 
           # 3) 환경 변수 업데이트
-          # JSON을 포함한 값은 인라인 shell 삽입 시 특수문자가 깨지므로
-          # Python으로 JSON 파일을 생성한 뒤 --cli-input-json으로 안전하게 전달
-          python3 - <<'PYEOF'
-import json, os
-
-config = {
-    "FunctionName": "stock-news-sync",
-    "Environment": {
-        "Variables": {
-            "GROQ_API_KEY": os.environ["GROQ_API_KEY"].strip(),
-            "TAVILY_API_KEY": os.environ["TAVILY_API_KEY"].strip(),
-            "FIREBASE_SERVICE_ACCOUNT": os.environ["FIREBASE_SERVICE_ACCOUNT"].strip(),
-        }
-    }
-}
-with open("lambda_env.json", "w") as f:
-    json.dump(config, f)
-print("lambda_env.json generated")
-PYEOF
+          # Firebase JSON 등 특수문자가 포함된 값은 인라인 shell 삽입 시 깨지므로
+          # 별도 Python 스크립트로 JSON 파일 생성 후 --cli-input-json으로 안전하게 전달
+          python3 .github/scripts/make_lambda_env.py
 
           aws lambda update-function-configuration \
             --cli-input-json file://lambda_env.json > /dev/null
