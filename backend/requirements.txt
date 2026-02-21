@@ -3,6 +3,7 @@ firebase-admin
 python-dotenv
 tavily-python
 groq
+google-genai
 
 # --- Future Use (Chatbot) ---
 # openai
