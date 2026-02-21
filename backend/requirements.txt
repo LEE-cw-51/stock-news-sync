@@ -2,8 +2,7 @@ yfinance
 firebase-admin
 python-dotenv
 tavily-python
-groq
-google-genai
+litellm
 
 # --- Future Use (Chatbot) ---
 # openai
