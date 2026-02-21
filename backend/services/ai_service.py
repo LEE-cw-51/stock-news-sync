@@ -112,9 +112,14 @@ def generate_ai_summary(stock_name, context, category: str = "watchlist"):
                     config=types.GenerateContentConfig(
                         system_instruction=system_prompt,
                         temperature=0.2,
-                        max_output_tokens=500
+                        max_output_tokens=1000
                     )
                 )
+
+                # 토큰 제한으로 인한 출력 잘림 감지 → 다음 모델로 폴백
+                if response.candidates and response.candidates[0].finish_reason == types.FinishReason.LENGTH:
+                    raise Exception("Output truncated due to token limit (LENGTH) - trying next model")
+
                 result = response.text
 
             # [Groq 모델 처리 로직]
@@ -129,8 +134,13 @@ def generate_ai_summary(stock_name, context, category: str = "watchlist"):
                         {"role": "user", "content": user_prompt}
                     ],
                     temperature=0.2,
-                    max_tokens=500,
+                    max_tokens=1000,
                 )
+
+                # 토큰 제한으로 인한 출력 잘림 감지 → 다음 모델로 폴백
+                if completion.choices[0].finish_reason == "length":
+                    raise Exception("Output truncated due to token limit (length) - trying next model")
+
                 result = completion.choices[0].message.content
 
             logger.info(f"✅ AI 분석 완료 (사용한 모델: {model_name})")
