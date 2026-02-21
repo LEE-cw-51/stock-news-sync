@@ -103,9 +103,9 @@ def run_sync_engine_once():
     # [C] AI 요약 생성
     logger.info("[Step C] AI 요약 생성 시작")
     ai_summaries = {
-        "macro": generate_ai_summary("글로벌 경제", ai_contexts["macro"]),
-        "portfolio": generate_ai_summary("내 포트폴리오", ai_contexts["portfolio"]),
-        "watchlist": generate_ai_summary("관심 종목", ai_contexts["watchlist"])
+        "macro":     generate_ai_summary("글로벌 경제",   ai_contexts["macro"],     category="macro"),
+        "portfolio": generate_ai_summary("내 포트폴리오", ai_contexts["portfolio"], category="portfolio"),
+        "watchlist": generate_ai_summary("관심 종목",    ai_contexts["watchlist"], category="watchlist"),
     }
 
     # [D] 최종 데이터 저장

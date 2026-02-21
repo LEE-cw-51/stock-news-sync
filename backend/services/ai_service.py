@@ -23,39 +23,44 @@ gemini_client = genai.Client(api_key=_gemini_api_key) if _gemini_api_key else No
 _quota_exceeded_models: set = set()
 
 
-def choose_optimal_models(context):
+def choose_optimal_models(category: str) -> list:
     """
-    뉴스 컨텍스트의 길이와 복잡도를 분석하여 4개 모델의 최적 폴백 순위를 결정합니다.
+    카테고리(macro/portfolio/watchlist)별 특성에 맞춰 모델 우선순위를 결정합니다.
+
+    - macro    : 거시경제 인과관계 추론 → 가장 강력한 추론 모델 우선
+    - portfolio: 기업별 뉴스 정밀 분석 → 고성능 + 안정적인 할당량
+    - watchlist: 트렌드 모니터링      → 초고속 경량 모델로 충분
     """
-    complex_keywords = ["실적", "어닝", "합병", "인수", "재무제표", "금리", "목표가"]
-
-    is_long_text = len(context) > 1500
-    has_complex_keyword = any(keyword in context for keyword in complex_keywords)
-
-    # [상황 A] 복잡하고 긴 뉴스: 똑똑한 모델(Pro/GPT)을 우선 배치
-    if is_long_text or has_complex_keyword:
-        logger.info("🧠 [Model Routing] 복잡한 뉴스 감지 -> 추론형 모델을 1순위로 배정합니다.")
+    if category == "macro":
+        logger.info("🌐 [Model Routing] Macro → 추론형 모델 우선 배정")
         return [
-            "gemini-2.5-pro",          # 1순위: 가장 똑똑한 제미나이 프로
-            "openai/gpt-oss-20b",      # 2순위: Groq의 고성능 모델
-            "gemini-3-flash-preview",  # 3순위: 제미나이 플래시
-            "llama-3.1-8b-instant"     # 4순위: 초고속 Llama
+            "gemini-2.5-pro",         # 1순위: 복잡한 거시경제 인과관계 추론
+            "openai/gpt-oss-20b",     # 2순위: Groq 고성능 폴백
+            "gemini-3-flash-preview", # 3순위: 제미나이 플래시
+            "llama-3.1-8b-instant",   # 4순위: 최후 폴백
+        ]
+    elif category == "portfolio":
+        logger.info("💼 [Model Routing] Portfolio → 고성능 Groq 모델 우선 배정")
+        return [
+            "openai/gpt-oss-20b",     # 1순위: 기업별 뉴스 정밀 분석 + Groq이라 할당량 부담 없음
+            "gemini-2.5-pro",         # 2순위: 제미나이 프로 폴백
+            "llama-3.1-8b-instant",   # 3순위: 초고속 Llama
+            "gemini-3-flash-preview", # 4순위: 제미나이 플래시
+        ]
+    else:  # watchlist
+        logger.info("⭐ [Model Routing] Watchlist → 초고속 경량 모델 우선 배정")
+        return [
+            "llama-3.1-8b-instant",   # 1순위: 트렌드 모니터링엔 초고속 경량 모델로 충분
+            "gemini-3-flash-preview", # 2순위: 제미나이 플래시 폴백
+            "openai/gpt-oss-20b",     # 3순위: Groq 고성능
+            "gemini-2.5-pro",         # 4순위: 최후 폴백
         ]
 
-    # [상황 B] 일반/짧은 뉴스: 가볍고 빠른 모델(Flash/Llama)을 우선 배치
-    else:
-        logger.info("⚡ [Model Routing] 일반 뉴스 감지 -> 속도형 모델을 1순위로 배정합니다.")
-        return [
-            "gemini-3-flash-preview",  # 1순위: 속도+검색 능력이 뛰어난 제미나이 플래시
-            "llama-3.1-8b-instant",    # 2순위: Groq의 초고속 Llama
-            "gemini-2.5-pro",          # 3순위: 제미나이 프로
-            "openai/gpt-oss-20b"       # 4순위: Groq 고성능 모델
-        ]
 
-
-def generate_ai_summary(stock_name, context):
+def generate_ai_summary(stock_name, context, category: str = "watchlist"):
     """
-    동적 라우팅 및 폴백을 통해 최적의 모델(Gemini/Groq)로 브리핑을 생성합니다.
+    카테고리별 최적 모델 라우팅 및 폴백을 통해 브리핑을 생성합니다.
+    category: "macro" | "portfolio" | "watchlist"
     """
     if not groq_client and not gemini_client:
         return "API 키(Groq 또는 Gemini)가 설정되지 않아 요약을 생성할 수 없습니다."
@@ -84,8 +89,8 @@ def generate_ai_summary(stock_name, context):
     2. 📊 **시장 반응 예상**: (단기적 관점에서 주가에 미칠 영향을 '호재', '악재', '중립' 중 하나로 명시하고 그 이유를 한 문장으로 서술)
     """
 
-    # 컨텍스트에 맞춰 4개 모델의 최적 순위 리스트를 받아옴
-    dynamic_fallback_list = choose_optimal_models(context)
+    # 카테고리에 맞춰 4개 모델의 최적 순위 리스트를 받아옴
+    dynamic_fallback_list = choose_optimal_models(category)
 
     for model_name in dynamic_fallback_list:
         # 이번 Lambda 실행 중 이미 429가 발생한 모델은 즉시 건너뜀
