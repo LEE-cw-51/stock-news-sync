@@ -19,6 +19,9 @@ groq_client = Groq(api_key=_groq_api_key) if _groq_api_key else None
 _gemini_api_key = os.getenv("GEMINI_API_KEY")
 gemini_client = genai.Client(api_key=_gemini_api_key) if _gemini_api_key else None
 
+# Lambda 실행 내에서 429(할당량 초과)가 발생한 모델을 기억 → 재시도 방지
+_quota_exceeded_models: set = set()
+
 
 def choose_optimal_models(context):
     """
@@ -85,6 +88,11 @@ def generate_ai_summary(stock_name, context):
     dynamic_fallback_list = choose_optimal_models(context)
 
     for model_name in dynamic_fallback_list:
+        # 이번 Lambda 실행 중 이미 429가 발생한 모델은 즉시 건너뜀
+        if model_name in _quota_exceeded_models:
+            logger.info(f"⏭️ {model_name} 할당량 초과 이력 있음 - 건너뜁니다.")
+            continue
+
         try:
             logger.info(f"🤖 AI 분석 시도 중... (모델: {model_name})")
 
@@ -124,8 +132,13 @@ def generate_ai_summary(stock_name, context):
             return result
 
         except Exception as e:
-            # 에러(한도 초과 등) 발생 시 다음 순위 모델로 안전하게 넘어감
-            logger.warning(f"⚠️ {model_name} 실패 ({e}) -> 다음 모델로 전환합니다.")
+            error_str = str(e)
+            # 429 할당량 초과 → 세션 내 영구 비활성화 (이후 호출에서 즉시 스킵)
+            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str:
+                _quota_exceeded_models.add(model_name)
+                logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화 및 다음 모델로 전환합니다.")
+            else:
+                logger.warning(f"⚠️ {model_name} 실패 ({error_str}) -> 다음 모델로 전환합니다.")
             continue
 
     return "현재 모든 AI 모델(4개)의 한도가 초과되었거나 응답할 수 없는 상태입니다."
