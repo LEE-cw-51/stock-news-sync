@@ -2,7 +2,7 @@ yfinance
 firebase-admin
 python-dotenv
 tavily-python
-litellm
+openai
 
 # --- Future Use (Chatbot) ---
 # openai

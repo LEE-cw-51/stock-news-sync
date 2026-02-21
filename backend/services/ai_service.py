@@ -1,26 +1,61 @@
 import os
 import logging
-import litellm
+from openai import OpenAI
 from dotenv import load_dotenv
 
 from backend.config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
 
 load_dotenv()
 
-# LiteLLM 내부 디버그 로그 비활성화
-litellm.suppress_debug_info = True
-
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+# =============================================================================
+# OpenAI 호환 클라이언트 초기화
+# Groq와 Gemini 모두 OpenAI API 형식을 지원하므로 base_url만 달리해 통합합니다.
+# =============================================================================
+_GROQ_CLIENT = OpenAI(
+    api_key=os.getenv("GROQ_API_KEY", ""),
+    base_url="https://api.groq.com/openai/v1",
+) if os.getenv("GROQ_API_KEY") else None
+
+_GEMINI_CLIENT = OpenAI(
+    api_key=os.getenv("GEMINI_API_KEY", ""),
+    base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+) if os.getenv("GEMINI_API_KEY") else None
+
+if not _GROQ_CLIENT:
+    logger.error("❌ GROQ_API_KEY가 설정되지 않았습니다.")
+if not _GEMINI_CLIENT:
+    logger.error("❌ GEMINI_API_KEY가 설정되지 않았습니다.")
 
 # Lambda 실행 내 429 초과 모델을 기억 → 같은 세션에서 재시도 방지
 _quota_exceeded_models: set = set()
 
 
+def _get_client_and_model(model_name: str):
+    """
+    모델 이름의 prefix로 클라이언트와 실제 API 모델명을 분리합니다.
+      "groq/<model>"   → _GROQ_CLIENT   + "<model>"
+      "gemini/<model>" → _GEMINI_CLIENT + "<model>"
+    """
+    if model_name.startswith("groq/"):
+        if not _GROQ_CLIENT:
+            raise Exception("GROQ_API_KEY가 없습니다.")
+        return _GROQ_CLIENT, model_name[len("groq/"):]
+
+    if model_name.startswith("gemini/"):
+        if not _GEMINI_CLIENT:
+            raise Exception("GEMINI_API_KEY가 없습니다.")
+        return _GEMINI_CLIENT, model_name[len("gemini/"):]
+
+    raise ValueError(f"알 수 없는 모델 prefix: {model_name}")
+
+
 def generate_ai_summary(stock_name: str, context: str, category: str = "watchlist") -> str:
     """
-    카테고리별 최적 모델로 AI 브리핑을 생성합니다. (LiteLLM 통합)
+    카테고리별 최적 모델로 AI 브리핑을 생성합니다.
     - 모델 우선순위: backend/config/models.py 에서 설정
     - category: "macro" | "portfolio" | "watchlist"
     """
@@ -58,10 +93,11 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
             continue
 
         try:
+            client, api_model = _get_client_and_model(model_name)
             logger.info(f"🤖 [{category.upper()}] AI 분석 시도 중... (모델: {model_name})")
 
-            response = litellm.completion(
-                model=model_name,
+            response = client.chat.completions.create(
+                model=api_model,
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
