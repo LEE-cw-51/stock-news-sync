@@ -14,6 +14,7 @@ config = {
             "GEMINI_API_KEY": os.environ["GEMINI_API_KEY"].strip(),
             "TAVILY_API_KEY": os.environ["TAVILY_API_KEY"].strip(),
             "FIREBASE_SERVICE_ACCOUNT": os.environ["FIREBASE_SERVICE_ACCOUNT"].strip(),
+            "FIREBASE_DATABASE_URL": os.environ["FIREBASE_DATABASE_URL"].strip(),
         }
     }
 }

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { db } from "@/lib/firebase";
+import { db, auth, googleProvider, signInWithPopup, signOut } from "@/lib/firebase";
 import { ref, onValue } from "firebase/database";
+import { onAuthStateChanged, User } from "firebase/auth";
 import {
   Activity, LayoutDashboard, Newspaper, TrendingUp, Zap,
   Globe, Briefcase, Star, PlusCircle, Search, ArrowUpRight
@@ -48,13 +49,18 @@ interface FeedData {
 export default function Dashboard() {
   const [data, setData] = useState<FeedData | null>(null);
   const [activeTab, setActiveTab] = useState<'portfolio' | 'news'>('portfolio');
+  const [user, setUser] = useState<User | null>(null);
 
   useEffect(() => {
     const feedRef = ref(db, "/feed");
     const unsubscribe = onValue(feedRef, (snapshot) => {
       if (snapshot.exists()) setData(snapshot.val());
     });
-    return () => unsubscribe();
+    const unsubAuth = onAuthStateChanged(auth, setUser);
+    return () => {
+      unsubscribe();
+      unsubAuth();
+    };
   }, []);
 
   if (!data) return (
@@ -121,7 +127,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 2층: MARKET 지수 */}
+        {/* 2층: MARKET 지수 + 로그인 버튼 */}
         <div>
           <div className="max-w-7xl mx-auto px-4 h-10 flex items-center gap-6 overflow-x-auto no-scrollbar">
             <div className="flex-shrink-0 flex items-center gap-2 text-slate-500 font-black text-[11px] border-r border-slate-800 pr-4 uppercase tracking-widest">
@@ -137,6 +143,30 @@ export default function Dashboard() {
                   </span>
                 </div>
               ))}
+            </div>
+            {/* 로그인/로그아웃 버튼 */}
+            <div className="ml-auto flex-shrink-0 pl-4">
+              {user ? (
+                <button
+                  onClick={() => signOut(auth)}
+                  className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-white transition-colors"
+                >
+                  {user.photoURL && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={user.photoURL} className="w-6 h-6 rounded-full" alt="avatar" />
+                  )}
+                  <span className="hidden sm:inline">{user.displayName}</span>
+                  <span className="text-slate-700">|</span>
+                  <span>로그아웃</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => signInWithPopup(auth, googleProvider)}
+                  className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold rounded-full transition-colors"
+                >
+                  Google 로그인
+                </button>
+              )}
             </div>
           </div>
         </div>

@@ -1,0 +1,8 @@
+# 프로젝트 진행 로그
+
+| 날짜 | 작업 내용 | 결과 | 다음 할 일 |
+| :--- | :--- | :--- | :--- |
+| 2025-02-25 | 다중 에이전트 시스템 초기화 | CLAUDE.md, 서브에이전트 4개, docs/status 구조 완성 | 프론트엔드 대시보드 설계 |
+| 2025-02-25 | 05번 DevOps/SRE 및 06번 비서실장 영입, 중앙 보고 체계 수립 | 에이전트 6명 체제 + 운영 문서(AGENT_DIRECTORY, PLAYBOOK) 완성 | Phase 2 프론트엔드 대시보드 착수 |
+| 2025-02-25 | Git 버전 관리 체계 및 한글 커밋 컨벤션 도입 | 05번을 Git 책임자로 지정, 7가지 커밋 태그 + 브랜치 전략 확립, CLAUDE.md 행동 수칙 10번 신설 | Phase 2 개발 착수 전 브랜치 전략 적용 |
+| 2026-02-25 | 미완료 우선순위 5개 일괄 구현 (P2·P4·P5·P6·P7) | P4: FIREBASE_DATABASE_URL Lambda 주입 / P7: Google 로그인 UI + layout 메타데이터 수정 / P2: CI 프론트엔드 빌드 게이트 (frontend-check job) / P5: Vercel 배포 파이프라인 (vercel.json + frontend-deploy.yml) | GitHub Secrets FIREBASE_DATABASE_URL·VERCEL_TOKEN·VERCEL_ORG_ID·VERCEL_PROJECT_ID 등록 후 push로 검증 |
