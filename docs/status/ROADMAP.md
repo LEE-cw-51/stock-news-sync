@@ -15,10 +15,12 @@
 - [x] Vercel 배포 파이프라인 구성 (vercel.json + GitHub Actions frontend-deploy.yml)
 - [x] Firebase Auth Google 로그인 UI 연동 (헤더 로그인/로그아웃 버튼)
 - [x] layout.tsx 메타데이터 수정 (title: "Stock News Sync", lang: "ko")
-- [ ] Next.js 16 기반 뉴스 피드 UI 구현 (컴포넌트 분리)
-- [ ] 실시간 주가 변동 및 AI 요약 리포트 시각화
-- [ ] 사용자 관심 종목(Watchlist) 관리 기능
-- [ ] 반응형 대시보드 레이아웃 (모바일/데스크톱)
+- [x] Next.js 16 기반 뉴스 피드 UI 구현 (컴포넌트 분리 + 탭 네비게이션)
+- [x] AI 요약 구조화 표시 (호재/악재/중립 뱃지 + 불렛 파싱)
+- [x] 반응형 대시보드 레이아웃 (모바일 1열 / 데스크톱 2열)
+- [x] 코드 품질 개선 (ESLint 0 warnings, 타입 분리, rel="noopener", aria-label)
+- [ ] 주가 시각화 차트 (히스토리 수집 인프라 구축 후 → Phase 3)
+- [ ] 사용자 관심 종목(Watchlist) 개인 관리 기능 (Lambda 동적 티커 → Phase 3)
 
 ## Phase 3: AI 투자 비서 고도화
 - [ ] 과거 데이터 기반 투자 인사이트 분석

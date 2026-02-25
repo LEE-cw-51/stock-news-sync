@@ -29,7 +29,6 @@ jobs:
 
       - name: Lint check
         run: npx eslint . --max-warnings=0
-        continue-on-error: true
 
       - name: Build check
         run: npm run build
