@@ -242,6 +242,64 @@ git commit -m "[Refactor]: ai_service.py 쿼터 관리 로직 분리"
 
 ---
 
+## SOP 6: 데이터베이스 추가/이관 절차
+
+새 DB 서비스 연동 또는 기존 DB 이관 시 적용한다.
+**모든 DB 관련 결정은 SOP 3(승인 필요 사항)을 통해 사용자 승인 후 진행한다.**
+
+### 승인 필요 항목 (SOP 3 경유)
+- 새 DB 서비스 추가 (비용 발생 가능)
+- 기존 DB 스키마/경로 변경 (데이터 정합성 위험)
+- Firebase Security Rules 변경
+- 환경 변수 신규 추가 (GitHub Secrets 포함)
+
+### DB 추가 절차 (예: Supabase 신규 연동)
+
+```
+Step 1. 03번(데이터/AI) — 테이블 스키마 설계
+    │   인덱스, 파티셔닝, RLS 정책 포함하여 설계안 작성
+    │   → 06번에 상신
+    ↓
+Step 2. 06번 비서실장 — 사용자 승인 요청 (SOP 3)
+    │   [무엇을] [왜] [예상 비용/영향] [대안]
+    ↓
+Step 3. 사용자 승인 후 → 05번(DevOps) — 인프라 연결 설정
+    │   GitHub Secrets 추가 (SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY 등)
+    │   Lambda 연결 풀러 설정 (Supavisor 포트 6543, Transaction mode)
+    ↓
+Step 4. 04번(QA) — 스키마 리뷰
+    │   데이터 무결성, RLS 보안, 인덱스 효율 검토
+    ↓
+Step 5. 02번(Backend) — Lambda 코드 연동
+    │   psycopg2-binary 또는 supabase 클라이언트 추가
+    │   requirements.txt 크기 확인 (250MB 제한)
+    ↓
+Step 6. 로컬 테스트 (test_run.py) 후 커밋·배포
+    ↓
+Step 7. 기존 DB 제거는 신규 DB 안정화 확인 후 진행
+        (최소 1주일 안정 운영 확인 후)
+```
+
+### Firebase → Supabase 단계적 이관 기준
+
+| 이관 항목 | 조건 | 예상 Phase |
+|---------|------|-----------|
+| Firestore → Supabase | Supabase stock_history 안정 운영 1주일 후 | Phase 3 중반 |
+| Firebase Auth → Supabase Auth | Phase 4, Supabase Realtime 성숙도 확인 후 | Phase 4 |
+| Firebase RTDB → Supabase Realtime | 지연시간 < 200ms 검증 후 (현재 유지) | Phase 4 이후 |
+
+### 패키지 크기 가이드라인
+
+| 라이브러리 | 크기 | 허용 여부 |
+|---------|------|---------|
+| psycopg2-binary | ~5MB | ✅ 허용 |
+| supabase (Python) | ~10MB | ✅ 허용 |
+| firebase-admin | ~25MB | ✅ 허용 (기존) |
+| litellm | ~120MB+ | ❌ 금지 |
+| pandas | ~50MB | ⚠️ 신중 검토 |
+
+---
+
 ## 에이전트 호출 가이드
 
 | 작업 유형 | 호출 에이전트 | 예시 |

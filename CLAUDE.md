@@ -86,15 +86,23 @@ stock-news-sync/
 │       └── news_service.py          # Tavily 뉴스 검색
 └── frontend/
     ├── app/
-    │   ├── layout.tsx               # 루트 레이아웃
-    │   └── page.tsx                 # 메인 대시보드
+    │   ├── layout.tsx               # 루트 레이아웃 (lang="ko", 한국어 메타데이터)
+    │   └── page.tsx                 # 메인 대시보드 (7개 컴포넌트 조합)
     ├── components/
-    │   ├── AdBanner.tsx             # 광고 배너 컴포넌트
-    │   ├── dashboard/               # 시장 지수, 지표
-    │   ├── portfolio/               # 포트폴리오 뷰
-    │   ├── news/                    # 뉴스 피드
-    │   └── layout/                  # 네비게이션
-    ├── lib/firebase.ts              # Firebase 클라이언트 초기화
+    │   ├── AdBanner.tsx             # 광고 배너 컴포넌트 (top-banner/side-banner/in-feed)
+    │   ├── dashboard/
+    │   │   └── MarketIndexCard.tsx  # 시장 지수/지표 표시 카드 (macro/index variant)
+    │   ├── portfolio/
+    │   │   └── StockRow.tsx         # 주식 1행 컴포넌트 (portfolio/watchlist variant)
+    │   ├── news/
+    │   │   ├── AISummaryCard.tsx    # AI 요약 구조화 표시 (호재/악재/중립 파싱)
+    │   │   ├── NewsCard.tsx         # 뉴스 카드 (상대 시간 포맷, rel=noopener)
+    │   │   └── NewsFeedSection.tsx  # 탭 네비게이션 + AI 요약 + 뉴스 목록 통합
+    │   └── layout/
+    │       └── Header.tsx           # 스티키 헤더 (2단: Macro 지표 + 시장 지수 + 인증)
+    ├── lib/
+    │   ├── firebase.ts              # Firebase 클라이언트 초기화 (auth, db, googleProvider)
+    │   └── types.ts                 # 공통 타입 인터페이스 (MarketValue, StockData, etc.)
     ├── next.config.ts
     ├── tsconfig.json
     ├── package.json
@@ -126,7 +134,7 @@ NEXT_PUBLIC_FIREBASE_APP_ID=...
 ```
 
 ### GitHub Secrets (Lambda 배포 시 자동 주입)
-`GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_DATABASE_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`
+`GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_DATABASE_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
 ---
 
@@ -248,3 +256,29 @@ git push origin main              # GitHub Actions 자동 실행
 
 ### Firestore (`market_feeds/latest`)
 - RTDB와 동일한 데이터의 백업 저장소
+
+---
+
+## Phase 3 DB 전략 (2026-02-25 전 에이전트 회의 결정)
+
+### 현재 DB 구조
+- **Firebase RTDB**: 실시간 시장 데이터 표시 (유지)
+- **Firestore**: 동일 데이터 백업 저장 (Phase 3 중반 제거 예정)
+
+### Phase 3 추가 예정
+- **Supabase PostgreSQL**: 주가 히스토리 + 사용자 Watchlist
+  - Connection: Supavisor 포트 6543 (Lambda 연결 풀링, Transaction mode)
+  - 테이블: `stock_history` (OHLCV 60일), `watchlist` (사용자별)
+  - RLS: user_id 기반 Row Level Security 적용
+
+### 이관 원칙
+1. **Firebase RTDB**: 실시간 구독 특화, 장기 유지
+2. **Firestore**: Supabase로 대체 후 제거 (Phase 3 안정화 후)
+3. **Firebase Auth**: Phase 4 이후 Supabase Auth 이관 검토
+
+### 환경 변수 (Phase 3 추가 예정)
+```
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...
+SUPABASE_ANON_KEY=...
+```
