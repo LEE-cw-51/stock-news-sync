@@ -5,8 +5,7 @@ import { db, auth, googleProvider, signInWithPopup, signOut } from "@/lib/fireba
 import { ref, onValue } from "firebase/database";
 import { onAuthStateChanged, User } from "firebase/auth";
 import {
-  Activity, LayoutDashboard, Newspaper, TrendingUp, Zap,
-  Globe, Briefcase, Star, PlusCircle, Search, ArrowUpRight
+  Activity, Zap, Globe, Briefcase, Star, ArrowUpRight
 } from "lucide-react";
 import AdBanner from "@/components/AdBanner";
 
