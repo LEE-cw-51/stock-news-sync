@@ -3,7 +3,7 @@ import json
 import logging
 import requests
 import firebase_admin
-from firebase_admin import credentials, db, firestore
+from firebase_admin import credentials, db
 
 logger = logging.getLogger(__name__)
 
@@ -34,7 +34,6 @@ class DBService:
             })
 
         self.rt = db
-        self.fs = firestore.client()
 
         # Supabase REST API 설정 (Phase 3)
         self.supabase_url = os.environ.get('SUPABASE_URL')
@@ -59,10 +58,6 @@ class DBService:
             # RTDB 업데이트 — update()로 기존 market_indices/key_indicators를 보존
             self.rt.reference("/feed").update(data)
             logger.info("RTDB updated: /feed")
-
-            # Firestore 업데이트
-            self.fs.collection('market_feeds').document('latest').set(data)
-            logger.info("Firestore updated: market_feeds/latest")
 
         except Exception as e:
             logger.error("Save Final Feed Error: %s", e)
