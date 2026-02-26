@@ -53,17 +53,17 @@ stock-news-sync/
 │   │   ├── 01_frontend_agent.md
 │   │   ├── 02_backend_agent.md
 │   │   ├── 03_data_ai_agent.md
-│   │   ├── 04_qa_agent.md
-│   │   ├── 05_devops_sre_agent.md   # DevOps/SRE 인프라 운영
-│   │   └── 06_chief_of_staff_agent.md  # 비서실장 (중앙 보고)
+│   │   ├── 04_tech_lead_pm_agent.md # Tech Lead PM (QA + 보고 총괄)
+│   │   └── archive/                 # 폐지된 에이전트 보관
 │   └── worktrees/                   # Claude Code 병렬 에이전트 워크트리
 ├── docs/
-│   ├── operations/                  # 운영 관리 문서 (06번 관리)
+│   ├── operations/                  # 운영 관리 문서 (04번 관리)
 │   │   ├── AGENT_DIRECTORY.md       # 에이전트 인사 관리 카드
 │   │   └── PLAYBOOK.md             # 표준 협업 프로세스 (SOP)
 │   └── status/
 │       ├── ROADMAP.md               # 프로젝트 로드맵 (Phase별 진행)
-│       └── PROGRESS.log             # 작업 진행 로그
+│       ├── PROGRESS.log             # 작업 진행 로그
+│       └── HANDOFF.md               # 세션 인수인계 문서
 ├── vercel.json                      # Vercel 빌드 설정 (rootDirectory: frontend)
 ├── .github/
 │   ├── workflows/
@@ -76,12 +76,14 @@ stock-news-sync/
 │   ├── requirements.txt             # Python 의존성
 │   ├── .env                         # API 키 (gitignored)
 │   ├── serviceAccount.json          # Firebase 서비스 계정 (gitignored)
+│   ├── db/
+│   │   └── supabase_schema.sql      # Supabase PostgreSQL 스키마 (Phase 3)
 │   ├── config/
 │   │   ├── tickers.py               # 포트폴리오/관심종목/키워드 정의
 │   │   └── models.py                # AI 모델 라우팅 설정
 │   └── services/
 │       ├── ai_service.py            # LLM 요약 (Groq/Gemini 팔백)
-│       ├── db_service.py            # Firebase RTDB + Firestore 저장
+│       ├── db_service.py            # Firebase RTDB + Supabase REST 저장
 │       ├── market_service.py        # yfinance 시장 데이터
 │       └── news_service.py          # Tavily 뉴스 검색
 └── frontend/
