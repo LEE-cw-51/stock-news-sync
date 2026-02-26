@@ -21,7 +21,7 @@ from backend.config.tickers import (
     MY_PORTFOLIO, WATCHLIST, MACRO_KEYWORDS
 )
 from backend.services.db_service import DBService
-from backend.services.market_service import get_market_indices, get_top_volume_stocks
+from backend.services.market_service import get_market_indices, get_top_volume_stocks, get_stock_history
 from backend.services.news_service import get_tavily_news
 from backend.services.ai_service import generate_ai_summary
 
@@ -120,6 +120,15 @@ def run_sync_engine_once():
     }
 
     db_svc.save_final_feed(final_data)
+
+    # [E] Supabase 주가 히스토리 저장
+    logger.info("[Step E] Supabase 주가 히스토리 저장 시작")
+    all_symbols = list(MY_PORTFOLIO.keys()) + list(WATCHLIST.keys())
+    history_records = []
+    for symbol in all_symbols:
+        history_records.extend(get_stock_history(symbol))
+    if history_records:
+        db_svc.save_stock_history(history_records)
 
     p_count = len(frontend_feed['portfolio'])
     w_count = len(frontend_feed['watchlist'])
