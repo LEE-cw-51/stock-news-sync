@@ -52,3 +52,36 @@ def get_top_volume_stocks(ticker_list, top_n=10):
     except Exception as e:
         logger.error("Stock Data Error: %s", e)
         return []
+
+def get_stock_history(symbol: str, period: str = "60d") -> list[dict]:
+    """종목의 OHLCV 히스토리 수집 (Supabase stock_history 저장용).
+
+    Args:
+        symbol: 티커 (예: NVDA, 005930.KS)
+        period: yfinance 기간 (기본 60일)
+
+    Returns:
+        [{"symbol": str, "date": str, "open": float,
+          "high": float, "low": float, "close": float, "volume": int}, ...]
+    """
+    try:
+        hist = yf.Ticker(symbol).history(period=period)
+        if hist.empty:
+            logger.warning("히스토리 없음: %s", symbol)
+            return []
+        records = []
+        for date, row in hist.iterrows():
+            records.append({
+                "symbol": symbol,
+                "date": date.strftime("%Y-%m-%d"),
+                "open": round(float(row["Open"]), 4) if row["Open"] is not None else None,
+                "high": round(float(row["High"]), 4) if row["High"] is not None else None,
+                "low": round(float(row["Low"]), 4) if row["Low"] is not None else None,
+                "close": round(float(row["Close"]), 4) if row["Close"] is not None else None,
+                "volume": int(row["Volume"]) if row["Volume"] is not None else None,
+            })
+        logger.info("히스토리 수집 완료: %s (%d건)", symbol, len(records))
+        return records
+    except Exception as e:
+        logger.warning("히스토리 수집 실패 (%s): %s", symbol, e)
+        return []

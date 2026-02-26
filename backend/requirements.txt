@@ -3,6 +3,7 @@ firebase-admin
 python-dotenv
 tavily-python
 openai
+psycopg2-binary
 
 # --- Future Use (Chatbot) ---
 # openai
