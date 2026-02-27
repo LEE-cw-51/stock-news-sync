@@ -1,6 +1,6 @@
 import os
 import logging
-from openai import OpenAI
+from openai import OpenAI, RateLimitError  # [P5 Fix] RateLimitError 타입 임포트
 from dotenv import load_dotenv
 
 try:
@@ -117,9 +117,17 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
             logger.info(f"✅ AI 분석 완료 (모델: {model_name})")
             return result
 
+        except RateLimitError:
+            # [P5 Fix] openai SDK의 RateLimitError(HTTP 429)를 타입으로 정확히 감지
+            _quota_exceeded_models.add(model_name)
+            logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화 및 다음 모델로 전환합니다.")
+            continue
+
         except Exception as e:
             error_str = str(e)
-            if "429" in error_str or "RESOURCE_EXHAUSTED" in error_str or "RateLimitError" in error_str:
+            # [P5 Fix] Gemini의 RESOURCE_EXHAUSTED는 openai RateLimitError가 아닌
+            # 일반 Exception으로 래핑될 수 있어 문자열 체크를 폴백으로 유지
+            if "RESOURCE_EXHAUSTED" in error_str or "429" in error_str:
                 _quota_exceeded_models.add(model_name)
                 logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화 및 다음 모델로 전환합니다.")
             else:
