@@ -21,8 +21,9 @@
 - **Framework**: Next.js 16.1.5 (App Router, React 19, TypeScript 5)
 - **Styling**: Tailwind CSS v4 + PostCSS
 - **Icons**: lucide-react
-- **DB Client**: Firebase SDK v12 (Realtime Database 실시간 구독)
+- **DB Client**: Firebase SDK v12 (Realtime Database 실시간 구독) + @supabase/supabase-js (차트 데이터)
 - **Auth**: Firebase Auth (Google Sign-In)
+- **Chart**: lightweight-charts (60일 OHLCV 캔들스틱 차트)
 - **Linting**: ESLint v9 (eslint-config-next / core-web-vitals)
 
 ### Backend (Data Sync Engine)
@@ -30,7 +31,7 @@
 - **Market Data**: yfinance (Yahoo Finance API)
 - **News Search**: Tavily API (`topic="news"`, max_results=3)
 - **AI/LLM**: OpenAI SDK — Groq(base_url 변경) + Google Gemini 연결
-- **DB**: Firebase Admin SDK (RTDB + Firestore 이중 저장)
+- **DB**: Firebase Admin SDK (RTDB) + Supabase REST API (stock_history UPSERT)
 - **Env**: python-dotenv
 
 ### Infrastructure
@@ -38,7 +39,7 @@
 - **CI/CD**: GitHub Actions → S3 → Lambda 업데이트
 - **Build**: manylinux2014_x86_64 아키텍처 빌드 (Lambda 호환)
 - **Package Limit**: 250MB (LiteLLM 등 무거운 패키지 사용 금지)
-- **Database**: Firebase Realtime Database + Firestore
+- **Database**: Firebase Realtime Database + Supabase PostgreSQL (Firestore 제거 완료)
 - **Region**: ap-northeast-2 (서울)
 
 ---
@@ -51,7 +52,7 @@ stock-news-sync/
 ├── .claude/
 │   ├── agents/                      # 서브에이전트 프롬프트
 │   │   ├── 01_frontend_agent.md
-│   │   ├── 02_backend_agent.md
+│   │   ├── 02_backend_cloud_agent.md
 │   │   ├── 03_data_ai_agent.md
 │   │   ├── 04_tech_lead_pm_agent.md # Tech Lead PM (QA + 보고 총괄)
 │   │   └── archive/                 # 폐지된 에이전트 보관
@@ -94,8 +95,10 @@ stock-news-sync/
     │   ├── AdBanner.tsx             # 광고 배너 컴포넌트 (top-banner/side-banner/in-feed)
     │   ├── dashboard/
     │   │   └── MarketIndexCard.tsx  # 시장 지수/지표 표시 카드 (macro/index variant)
+    │   ├── chart/
+    │   │   └── StockChart.tsx       # 60일 OHLCV 캔들스틱 차트 (Supabase 조회, "use client")
     │   ├── portfolio/
-    │   │   └── StockRow.tsx         # 주식 1행 컴포넌트 (portfolio/watchlist variant)
+    │   │   └── StockRow.tsx         # 주식 1행 컴포넌트 (portfolio/watchlist variant, 차트 토글)
     │   ├── news/
     │   │   ├── AISummaryCard.tsx    # AI 요약 구조화 표시 (호재/악재/중립 파싱)
     │   │   ├── NewsCard.tsx         # 뉴스 카드 (상대 시간 포맷, rel=noopener)
@@ -104,7 +107,8 @@ stock-news-sync/
     │       └── Header.tsx           # 스티키 헤더 (2단: Macro 지표 + 시장 지수 + 인증)
     ├── lib/
     │   ├── firebase.ts              # Firebase 클라이언트 초기화 (auth, db, googleProvider)
-    │   └── types.ts                 # 공통 타입 인터페이스 (MarketValue, StockData, etc.)
+    │   ├── supabase.ts              # Supabase 클라이언트 (ANON_KEY, 차트 데이터 조회용)
+    │   └── types.ts                 # 공통 타입 인터페이스 (StockHistory, MarketValue, StockData, etc.)
     ├── next.config.ts
     ├── tsconfig.json
     ├── package.json
@@ -122,6 +126,8 @@ GEMINI_API_KEY=...
 TAVILY_API_KEY=...
 FIREBASE_SERVICE_ACCOUNT=<JSON 문자열 또는 파일 경로>
 FIREBASE_DATABASE_URL=https://stock-news-sync-default-rtdb.firebaseio.com
+SUPABASE_URL=https://<project-ref>.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...   # service_role 키 (Lambda 전용, 프론트엔드 금지)
 ```
 
 ### `frontend/.env.local` (로컬 개발)
@@ -133,10 +139,12 @@ NEXT_PUBLIC_FIREBASE_DATABASE_URL=...
 NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=...
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=...
 NEXT_PUBLIC_FIREBASE_APP_ID=...
+NEXT_PUBLIC_SUPABASE_URL=https://<project-ref>.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=...   # anon 키 (RLS 보호, 프론트엔드 공개 안전)
 ```
 
 ### GitHub Secrets (Lambda 배포 시 자동 주입)
-`GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_DATABASE_URL`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
+`GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`
 
 ---
 

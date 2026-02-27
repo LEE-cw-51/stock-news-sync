@@ -199,6 +199,21 @@ git commit -m "[Refactor]: ai_service.py 쿼터 관리 로직 분리"
 | 03번 (Data/AI) | ❌ 금지 | 02번 감독 필수 |
 | 04번 (Tech Lead PM) | ❌ 금지 | 보고·QA 전담 역할 |
 
+### 핵심 파일별 담당 에이전트 (충돌 방지)
+
+> `services/` 디렉터리는 02번과 03번이 공유하므로 파일 단위로 명확히 구분한다.
+
+| 파일 | 작성 에이전트 | 커밋 에이전트 |
+|------|------------|------------|
+| `backend/main.py` | 02번 | 02번 |
+| `backend/services/db_service.py` | 02번 | 02번 |
+| `backend/services/ai_service.py` | **03번** | 02번 |
+| `backend/services/market_service.py` | **03번** | 02번 |
+| `backend/services/news_service.py` | **03번** | 02번 |
+| `backend/config/models.py`, `tickers.py` | **03번** | 02번 |
+| `frontend/app/`, `components/`, `lib/` | **01번** | 02번 |
+| `.github/workflows/` | 02번 | 02번 |
+
 ---
 
 ## 보고 형식 표준

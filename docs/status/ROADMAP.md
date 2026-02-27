@@ -27,21 +27,21 @@
 ## Phase 3: 개인화 + 데이터 고도화 (예정)
 > **DB 전략**: Firebase RTDB 유지 + Supabase PostgreSQL 신규 추가 (2026-02-25 전 에이전트 회의 결정)
 
-### Step 1 — Supabase 연동 기반 구축
-- [ ] Supabase 프로젝트 생성 및 환경변수 설정
-- [ ] PostgreSQL 테이블 설계: `stock_history`, `watchlist`, `users`
-- [ ] Lambda에 psycopg2-binary 추가 (Supabase 연결, Supavisor 포트 6543 경유)
-- [ ] GitHub Secrets에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 추가
+### Step 1 — Supabase 연동 기반 구축 ✅ 완료
+- [x] Supabase 프로젝트 생성 및 환경변수 설정
+- [x] PostgreSQL 테이블 설계: `stock_history`, `watchlist`, `users`
+- [x] Lambda에 psycopg2-binary 추가 (Supabase 연결, Supavisor 포트 6543 경유)
+- [x] GitHub Secrets에 `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` 추가
 
-### Step 2 — 주가 히스토리 수집
-- [ ] backend: yfinance `.history(period="60d")` 데이터 수집 로직 추가
-- [ ] Lambda 실행 시 stock_history 테이블에 UPSERT (ON CONFLICT DO UPDATE)
-- [ ] Firestore 이중 저장 로직 제거 (Supabase로 대체)
+### Step 2 — 주가 히스토리 수집 ✅ 완료
+- [x] backend: yfinance `.history(period="60d")` 데이터 수집 로직 추가
+- [x] Lambda 실행 시 stock_history 테이블에 UPSERT (ON CONFLICT DO UPDATE)
+- [x] Firestore 이중 저장 로직 제거 (Supabase로 대체)
 
-### Step 3 — 차트 시각화
-- [ ] frontend: Lightweight Charts (~45KB) 도입 (Turbopack 호환 검증 후)
-- [ ] 60일 종가 라인 차트 컴포넌트 구현 (StockChartCard.tsx)
-- [ ] 포트폴리오 / 관심종목 클릭 시 차트 표시
+### Step 3 — 차트 시각화 ✅ 완료 (2026-02-27)
+- [x] frontend: Lightweight Charts 도입 + @supabase/supabase-js 패키지 추가
+- [x] 60일 OHLCV 캔들스틱 차트 컴포넌트 구현 (`StockChart.tsx`)
+- [x] 포트폴리오 / 관심종목 행 우측 LineChart 아이콘 토글로 차트 표시
 
 ### Step 4 — Watchlist 개인 관리
 - [ ] Supabase RLS 설정: `watchlist` 테이블에 user_id 기반 Row Level Security

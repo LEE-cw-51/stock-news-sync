@@ -87,6 +87,20 @@
 | Git | 코드 작성 (커밋 불가) | **커밋/병합 권한** | 코드 작성 (커밋 불가) | QA 검수 후 승인 |
 | 사용자 보고 | ❌ 04번 경유 | ❌ 04번 경유 | ❌ 04번 경유 | ✅ 직접 보고 |
 
+### 핵심 파일 레벨 담당 (충돌 방지)
+
+| 파일 | 주담당 | 보조 | 비고 |
+|------|--------|------|------|
+| `backend/main.py` | **02번** | — | Lambda 핸들러 진입점 |
+| `backend/services/db_service.py` | **02번** | — | Firebase/Supabase 연결 |
+| `backend/services/ai_service.py` | **03번** | 02번 (커밋만) | LLM 라우팅·프롬프트 |
+| `backend/services/market_service.py` | **03번** | 02번 (커밋만) | yfinance 데이터 수집 |
+| `backend/services/news_service.py` | **03번** | 02번 (커밋만) | Tavily 뉴스 수집 |
+| `backend/config/models.py` | **03번** | 02번 (커밋만) | AI 모델 라우팅 설정 |
+| `backend/config/tickers.py` | **03번** | 02번 (커밋만) | 종목·키워드 정의 |
+| `frontend/app/`, `components/`, `lib/` | **01번** | 02번 (커밋만) | Next.js UI 전체 |
+| `.github/workflows/` | **02번** | — | CI/CD 파이프라인 |
+
 ---
 
 ## 아카이브

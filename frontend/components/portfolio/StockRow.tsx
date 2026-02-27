@@ -1,4 +1,13 @@
+"use client";
+
+import { useState } from "react";
+import { LineChart } from "lucide-react";
+import dynamic from "next/dynamic";
 import type { StockData } from "@/lib/types";
+
+const StockChart = dynamic(() => import("@/components/chart/StockChart"), {
+  ssr: false,
+});
 
 interface StockRowProps {
   stock: StockData;
@@ -6,53 +15,86 @@ interface StockRowProps {
 }
 
 export default function StockRow({ stock, variant = "portfolio" }: StockRowProps) {
+  const [chartOpen, setChartOpen] = useState(false);
   const isPositive = stock.change_percent > 0;
   const changeColor = isPositive ? "text-red-400" : "text-blue-400";
 
   if (variant === "watchlist") {
     return (
-      <div className="flex justify-between items-center p-4 bg-slate-950/50 rounded-2xl border border-slate-800/50 hover:border-slate-600 transition-all">
-        <div>
-          <span className="font-bold text-slate-200 text-sm">{stock.name}</span>
-          {stock.sector && (
-            <p className="text-[10px] text-slate-600 mt-0.5">{stock.sector}</p>
-          )}
-        </div>
-        <div className="text-right">
-          <div className="font-mono text-sm font-bold text-slate-300">
-            {stock.price?.toLocaleString()}
+      <div>
+        <div className="flex justify-between items-center p-4 bg-slate-950/50 rounded-2xl border border-slate-800/50 hover:border-slate-600 transition-all">
+          <div>
+            <span className="font-bold text-slate-200 text-sm">{stock.name}</span>
+            {stock.sector && (
+              <p className="text-[10px] text-slate-600 mt-0.5">{stock.sector}</p>
+            )}
           </div>
-          <div className={`text-[10px] font-black ${changeColor}`}>
-            {isPositive ? "+" : ""}
-            {stock.change_percent}%
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="font-mono text-sm font-bold text-slate-300">
+                {stock.price?.toLocaleString()}
+              </div>
+              <div className={`text-[10px] font-black ${changeColor}`}>
+                {isPositive ? "+" : ""}
+                {stock.change_percent}%
+              </div>
+            </div>
+            <button
+              onClick={() => setChartOpen((prev) => !prev)}
+              className={`p-1.5 rounded-lg transition-colors ${
+                chartOpen
+                  ? "text-blue-400 bg-blue-500/10"
+                  : "text-slate-600 hover:text-slate-400"
+              }`}
+              aria-label="차트 보기"
+            >
+              <LineChart size={14} />
+            </button>
           </div>
         </div>
+        {chartOpen && <StockChart symbol={stock.symbol} />}
       </div>
     );
   }
 
   return (
-    <div className="flex justify-between items-center group cursor-pointer">
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-400 group-hover:border-blue-500 transition-colors">
-          {stock.symbol[0]}
-        </div>
-        <div>
-          <div className="text-sm font-bold text-slate-200">{stock.name}</div>
-          <div className="text-[10px] text-slate-500 font-mono tracking-tight">
-            {stock.symbol}
+    <div>
+      <div className="flex justify-between items-center group cursor-pointer">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center font-bold text-slate-400 group-hover:border-blue-500 transition-colors">
+            {stock.symbol[0]}
+          </div>
+          <div>
+            <div className="text-sm font-bold text-slate-200">{stock.name}</div>
+            <div className="text-[10px] text-slate-500 font-mono tracking-tight">
+              {stock.symbol}
+            </div>
           </div>
         </div>
-      </div>
-      <div className="text-right">
-        <div className="text-sm font-mono font-bold text-slate-300">
-          {stock.price?.toLocaleString()}
+        <div className="flex items-center gap-3">
+          <div className="text-right">
+            <div className="text-sm font-mono font-bold text-slate-300">
+              {stock.price?.toLocaleString()}
+            </div>
+            <div className={`text-[10px] font-black ${changeColor}`}>
+              {isPositive ? "+" : ""}
+              {stock.change_percent}%
+            </div>
+          </div>
+          <button
+            onClick={() => setChartOpen((prev) => !prev)}
+            className={`p-1.5 rounded-lg transition-colors ${
+              chartOpen
+                ? "text-blue-400 bg-blue-500/10"
+                : "text-slate-600 hover:text-slate-400"
+            }`}
+            aria-label="차트 보기"
+          >
+            <LineChart size={14} />
+          </button>
         </div>
-        <div className={`text-[10px] font-black ${changeColor}`}>
-          {isPositive ? "+" : ""}
-          {stock.change_percent}%
-        </div>
       </div>
+      {chartOpen && <StockChart symbol={stock.symbol} />}
     </div>
   );
 }
