@@ -250,19 +250,25 @@ AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
 
 ```
 main (보호 브랜치)
-├── feat/기능명      # 기능 개발
-├── fix/이슈명       # 버그 수정
-├── hotfix/내용      # 긴급 수정
-├── docs/내용        # 문서 갱신
-└── refactor/내용    # 리팩토링
+├── feat/p{N}-기능명      # 기능 개발 (Phase 번호 포함)
+├── fix/p{N}-이슈명       # 버그 수정 (Phase 번호 포함)
+├── hotfix/내용           # 긴급 수정 (Phase 무관)
+├── docs/내용             # 문서 갱신 (Phase 무관)
+└── refactor/p{N}-내용    # 리팩토링 (Phase 번호 포함)
 ```
+
+**네이밍 예시**:
+- `feat/p3-supabase-watchlist` — Phase 3, Supabase watchlist 기능
+- `fix/p3-lambda-timeout` — Phase 3, Lambda 타임아웃 수정
+- `hotfix/firebase-auth` — 긴급 수정 (Phase 무관)
+- `docs/agent-directory-update` — 문서 갱신 (Phase 무관)
 
 ### Git 작업 흐름
 
 ```
 사용자 요청
     ↓
-02번: git checkout -b feat/기능명
+02번: git checkout -b feat/p{N}-기능명
     ↓
 01번/03번: 코드 작성 (직접 커밋 불가)
     ↓
@@ -270,9 +276,28 @@ main (보호 브랜치)
     ↓
 02번: git add . && git commit -m "[Feat]: 작업 내용"
     ↓
-02번: git merge feat/기능명 → main
+02번: git merge feat/p{N}-기능명 → main
     ↓
 CI/CD: GitHub Actions 자동 실행 (Lambda 배포)
+    ↓
+02번: git branch -d feat/p{N}-기능명  # 작업 브랜치 즉시 삭제
+```
+
+### 세션 종료 정리 (HANDOFF.md 갱신 커밋 직후 필수)
+
+```
+HANDOFF.md 갱신 커밋 완료
+    ↓
+02번: git worktree prune   # 삭제된 워크트리 레퍼런스 정리
+    ↓
+02번: claude/* 브랜치 중 main과 동일한 것 일괄 삭제
+    for b in $(git branch | grep 'claude/'); do
+      [ $(git log --oneline main..$b | wc -l) -eq 0 ] && git branch -d $b
+    done
+    ↓
+02번: git branch -a 로 최종 상태 확인
+    ↓
+02번: 04번(Tech Lead PM)에게 정리 완료 보고
 ```
 
 ### 커밋 금지 사항
