@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createChart, CandlestickData, Time } from "lightweight-charts";
+import { createChart, CandlestickSeries, CandlestickData, Time } from "lightweight-charts";
 import { supabase } from "@/lib/supabase";
 import type { StockHistory } from "@/lib/types";
 
@@ -36,7 +36,7 @@ export default function StockChart({ symbol }: StockChartProps) {
       },
     });
 
-    const candleSeries = chart.addCandlestickSeries({
+    const candleSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#ef4444",
       downColor: "#3b82f6",
       borderUpColor: "#ef4444",
