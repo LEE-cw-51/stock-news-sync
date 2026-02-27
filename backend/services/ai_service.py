@@ -3,7 +3,10 @@ import logging
 from openai import OpenAI
 from dotenv import load_dotenv
 
-from backend.config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
+try:
+    from backend.config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
+except ModuleNotFoundError:
+    from config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
 
 load_dotenv()
 

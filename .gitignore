@@ -46,6 +46,9 @@ venv/
 __pycache__/
 *.py[cod]
 
+# --- Claude Worktrees ---
+.claude/worktrees/
+
 # --- Firebase & Env ---
 serviceAccount.json
 .env
