@@ -10,11 +10,13 @@ config = {
     "FunctionName": "stock-news-sync",
     "Environment": {
         "Variables": {
-            "GROQ_API_KEY": os.environ["GROQ_API_KEY"].strip(),
-            "GEMINI_API_KEY": os.environ["GEMINI_API_KEY"].strip(),
-            "TAVILY_API_KEY": os.environ["TAVILY_API_KEY"].strip(),
-            "FIREBASE_SERVICE_ACCOUNT": os.environ["FIREBASE_SERVICE_ACCOUNT"].strip(),
-            "FIREBASE_DATABASE_URL": os.environ["FIREBASE_DATABASE_URL"].strip(),
+            "GROQ_API_KEY": os.environ.get("GROQ_API_KEY", "").strip(),
+            "GEMINI_API_KEY": os.environ.get("GEMINI_API_KEY", "").strip(),
+            "TAVILY_API_KEY": os.environ.get("TAVILY_API_KEY", "").strip(),
+            "FIREBASE_SERVICE_ACCOUNT": os.environ.get("FIREBASE_SERVICE_ACCOUNT", "").strip(),
+            "FIREBASE_DATABASE_URL": os.environ.get("FIREBASE_DATABASE_URL", "").strip(),
+            "SUPABASE_URL": os.environ.get("SUPABASE_URL", "").strip(),
+            "SUPABASE_SERVICE_ROLE_KEY": os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip(),
         }
     }
 }
