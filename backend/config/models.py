@@ -2,9 +2,9 @@
 # AI 모델 설정 파일
 # 모델 추가/변경/순서 조정은 이 파일만 수정하면 됩니다.
 #
-# LiteLLM 모델명 규칙:
-#   Gemini  → "gemini/<model-id>"
-#   Groq    → "groq/<model-id>"
+# 모델명 규칙 (OpenAI 호환 SDK, prefix로 클라이언트 분기):
+#   Gemini  → "gemini/<model-id>"   → Google Gemini API
+#   Groq    → "groq/<model-id>"    → Groq API
 # =============================================================================
 
 MODEL_CONFIG: dict[str, list[str]] = {

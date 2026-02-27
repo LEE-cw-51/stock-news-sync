@@ -15,8 +15,12 @@ def get_market_indices(indices_config):
     for name, ticker in indices_config.items():
         try:
             t = yf.Ticker(ticker)
-            price = t.fast_info['last_price']
-            prev = t.fast_info['previous_close']
+            # [P2 Fix] [] 직접 접근 → .get()으로 KeyError 방어
+            price = t.fast_info.get('last_price')
+            prev = t.fast_info.get('previous_close')
+            if price is None:
+                logger.warning("fast_info 누락 (%s): last_price", name)
+                continue
             updates[name] = {
                 "price": round(price, 2),
                 "change_percent": calc_change(price, prev)
@@ -34,9 +38,10 @@ def get_top_volume_stocks(ticker_list, top_n=10):
         for symbol in ticker_list:
             try:
                 t = tickers.tickers[symbol]
-                price = t.fast_info['last_price']
-                volume = t.fast_info['last_volume']
-                prev_close = t.fast_info['previous_close']
+                # [P2 Fix] [] 직접 접근 → .get()으로 KeyError 방어
+                price = t.fast_info.get('last_price')
+                volume = t.fast_info.get('last_volume')
+                prev_close = t.fast_info.get('previous_close')
 
                 if volume is not None and price is not None:
                     ranking.append({

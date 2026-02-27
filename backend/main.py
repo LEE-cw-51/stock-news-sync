@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import time
 import logging
 from datetime import datetime
@@ -17,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from backend.config.tickers import (
-    NAME_MAP, US_CANDIDATES, KR_CANDIDATES, 
+    NAME_MAP, US_CANDIDATES, KR_CANDIDATES,
     MY_PORTFOLIO, WATCHLIST, MACRO_KEYWORDS
 )
 from backend.services.db_service import DBService
@@ -61,7 +62,7 @@ def run_sync_engine_once():
                     "title": item.get("title"),
                     "link": item.get("url"),
                     "name": "Macro",
-                    "pubDate": item.get("published_date")
+                    "pubDate": item.get("date")  # [P1 Fix] news_service.py 반환 key는 "date"
                 }
                 frontend_feed["macro"].append(news_item)
         time.sleep(1)
@@ -74,7 +75,8 @@ def run_sync_engine_once():
     for item in (us_stocks + kr_stocks):
         symbol = item['symbol']
         info = NAME_MAP.get(symbol, {"name": symbol, "sector": "기타"})
-        safe_key = symbol.replace(".", "_")
+        # [P3 Fix] Firebase 경로 금지 문자(. $ # [ ] /) 일괄 치환
+        safe_key = re.sub(r'[.$#\[\]/]', '_', symbol)
 
         stock_data_map[safe_key] = {
             "symbol": symbol, "name": info['name'], "price": round(item['price'], 2),
@@ -87,18 +89,22 @@ def run_sync_engine_once():
         elif symbol in WATCHLIST: category = "watchlist"
 
         if category:
-            context, links = get_tavily_news(info['name'])
-            if context:
-                ai_contexts[category] += f"\n[{info['name']}]\n{context}\n"
-                for link_data in links:
-                    news_item = {
-                        "title": link_data.get("title"),
-                        "link": link_data.get("url"),
-                        "name": info['name'],
-                        "pubDate": link_data.get("published_date")
-                    }
-                    frontend_feed[category].append(news_item)
-            time.sleep(1)
+            try:  # [P4 Fix] 개별 종목 뉴스 수집 실패 시 전체 중단 방지
+                context, links = get_tavily_news(info['name'])
+                if context:
+                    ai_contexts[category] += f"\n[{info['name']}]\n{context}\n"
+                    for link_data in links:
+                        news_item = {
+                            "title": link_data.get("title"),
+                            "link": link_data.get("url"),
+                            "name": info['name'],
+                            "pubDate": link_data.get("date")  # [P1 Fix] news_service.py 반환 key는 "date"
+                        }
+                        frontend_feed[category].append(news_item)
+                time.sleep(1)
+            except Exception as e:
+                logger.warning("종목 뉴스 수집 실패 (%s): %s", symbol, e)
+                continue
 
     # [C] AI 요약 생성
     logger.info("[Step C] AI 요약 생성 시작")
@@ -133,9 +139,9 @@ def run_sync_engine_once():
     p_count = len(frontend_feed['portfolio'])
     w_count = len(frontend_feed['watchlist'])
     logger.info("[Success] Sync Complete. News: Port(%d), Watch(%d)", p_count, w_count)
-        
+
 def lambda_handler(event, context):
-    print("🚀 AWS Lambda 환경에서 동기화 엔진을 시작합니다.")
+    logger.info("AWS Lambda 환경에서 동기화 엔진을 시작합니다.")  # [P6 Fix] print → logging
     try:
         run_sync_engine_once()
         return {
@@ -143,7 +149,7 @@ def lambda_handler(event, context):
             'body': '데이터 동기화 완료'
         }
     except Exception as e:
-        print(f"❌ 실행 실패: {e}")
+        logger.error("실행 실패: %s", e)  # [P6 Fix] print → logging
         raise e
 
 
