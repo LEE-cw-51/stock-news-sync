@@ -325,4 +325,5 @@ Step 5: 04번(Tech Lead PM)에게 장애 리포트 제출
 - `.env` 또는 `serviceAccount.json` 커밋
 - API 키 코드 내 하드코딩
 - 프로덕션 DB 직접 수정 (Firebase Console 수동 변경 금지)
+- ⚠️ **`.claude/worktrees/` 디렉터리 커밋 금지** — 매 커밋 전 `git status` 확인하여 워크트리 파일 포함 여부 점검
 - 사용자에게 직접 보고 금지 — 반드시 04번(Tech Lead PM) 경유
