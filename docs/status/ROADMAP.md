@@ -43,16 +43,16 @@
 - [x] 60일 OHLCV 캔들스틱 차트 컴포넌트 구현 (`StockChart.tsx`)
 - [x] 포트폴리오 / 관심종목 행 우측 LineChart 아이콘 토글로 차트 표시
 
-### Step 4 — Watchlist 개인 관리
-- [ ] Supabase RLS 설정: `watchlist` 테이블에 user_id 기반 Row Level Security
-- [ ] frontend: Watchlist 추가/삭제 UI (StockRow에 + / - 버튼)
-- [ ] backend: Lambda에서 Firestore 하드코딩 제거 → Supabase `watchlist` 테이블 동적 읽기
-- [ ] tickers.py WATCHLIST 상수 → DB 조회로 교체
+### Step 4 — Watchlist 개인 관리 ✅ 완료 (2026-03-03)
+- [x] Supabase RPC 함수 3개 추가 (SECURITY DEFINER, ANON key로 CRUD 가능)
+- [x] frontend: Watchlist 추가(+)/삭제(-) UI (StockRow onAdd/onRemove prop)
+- [x] backend: Lambda tickers.py 하드코딩 → Supabase 동적 읽기 (폴백 유지)
+- [x] page.tsx: 로그인/비로그인 분기 + 개인 watchlist CRUD + 추가 후보 섹션
+- ⚠️ 사용자 액션 필요: Supabase SQL Editor에서 `supabase_schema.sql` RPC 함수 실행
 
-### Step 5 — AI 투자 비서 고도화
-- [ ] 과거 데이터 기반 투자 인사이트 분석 (PostgreSQL 집계 쿼리 활용)
-- [ ] 양방향 대화형 AI 챗봇 기능 추가
-- [ ] 개인화된 포트폴리오 리포트 생성
+### Step 5 — AI 투자 비서 고도화 (범위 축소, 2026-03-03 결정)
+- [ ] 60일 주가 히스토리 → AI 프롬프트에 추세 컨텍스트 주입 (챗봇 제거)
+- [ ] AISummaryCard에 추세 인사이트 섹션 추가 (선택적 렌더링)
 
 ## Phase 4: 인프라 고도화 (장기)
 - [ ] Firebase RTDB → Supabase Realtime 이관 검토 (Realtime 성숙도 및 지연시간 < 200ms 검증 후)

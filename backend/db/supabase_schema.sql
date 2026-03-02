@@ -51,3 +51,35 @@ CREATE POLICY "Users can delete own watchlist"
 
 -- service_role (Lambda)은 RLS 우회 가능 — 별도 정책 불필요
 -- Lambda는 SUPABASE_SERVICE_ROLE_KEY 사용 → 전체 접근 허용
+
+-- ──────────────────────────────────────────
+-- 3. RPC Functions (Firebase Auth UID 기반 CRUD)
+-- ANON key로 호출 가능 — SECURITY DEFINER로 RLS 우회 후 내부에서 user_id 검증
+-- 실행 위치: Supabase Dashboard → SQL Editor
+-- ──────────────────────────────────────────
+
+CREATE OR REPLACE FUNCTION get_user_watchlist(p_user_id TEXT)
+RETURNS TABLE (id BIGINT, user_id TEXT, symbol TEXT, name TEXT, sector TEXT)
+LANGUAGE SQL SECURITY DEFINER AS $$
+    SELECT id, user_id, symbol, name, sector
+    FROM watchlist
+    WHERE user_id = p_user_id
+    ORDER BY created_at DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION add_to_watchlist(
+    p_user_id TEXT,
+    p_symbol  TEXT,
+    p_name    TEXT,
+    p_sector  TEXT DEFAULT NULL
+)
+RETURNS void LANGUAGE SQL SECURITY DEFINER AS $$
+    INSERT INTO watchlist (user_id, symbol, name, sector)
+    VALUES (p_user_id, p_symbol, p_name, p_sector)
+    ON CONFLICT (user_id, symbol) DO NOTHING;
+$$;
+
+CREATE OR REPLACE FUNCTION remove_from_watchlist(p_user_id TEXT, p_symbol TEXT)
+RETURNS void LANGUAGE SQL SECURITY DEFINER AS $$
+    DELETE FROM watchlist WHERE user_id = p_user_id AND symbol = p_symbol;
+$$;

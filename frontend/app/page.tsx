@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { db, auth } from "@/lib/firebase";
+import { supabase } from "@/lib/supabase";
 import { ref, onValue } from "firebase/database";
 import { onAuthStateChanged } from "firebase/auth";
 import type { User } from "firebase/auth";
@@ -10,23 +11,79 @@ import AdBanner from "@/components/AdBanner";
 import Header from "@/components/layout/Header";
 import StockRow from "@/components/portfolio/StockRow";
 import NewsFeedSection from "@/components/news/NewsFeedSection";
-import type { FeedData, MarketValue, StockData } from "@/lib/types";
+import type { FeedData, MarketValue, StockData, WatchlistItem } from "@/lib/types";
 
 export default function Dashboard() {
   const [data, setData] = useState<FeedData | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [userWatchlist, setUserWatchlist] = useState<WatchlistItem[]>([]);
+
+  // 개인 Watchlist 로드 (Supabase RPC)
+  const loadUserWatchlist = useCallback(async (uid: string) => {
+    const { data: rows, error } = await supabase.rpc("get_user_watchlist", {
+      p_user_id: uid,
+    });
+    if (error) {
+      console.error("watchlist 로드 오류:", error.message);
+      return;
+    }
+    setUserWatchlist((rows as WatchlistItem[]) ?? []);
+  }, []);
 
   useEffect(() => {
     const feedRef = ref(db, "/feed");
     const unsubscribe = onValue(feedRef, (snapshot) => {
       if (snapshot.exists()) setData(snapshot.val() as FeedData);
     });
-    const unsubAuth = onAuthStateChanged(auth, setUser);
+    const unsubAuth = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (u) {
+        loadUserWatchlist(u.uid);
+      } else {
+        setUserWatchlist([]);
+      }
+    });
     return () => {
       unsubscribe();
       unsubAuth();
     };
-  }, []);
+  }, [loadUserWatchlist]);
+
+  // 관심종목 추가
+  const handleAdd = useCallback(
+    async (stock: StockData) => {
+      if (!user) return;
+      const { error } = await supabase.rpc("add_to_watchlist", {
+        p_user_id: user.uid,
+        p_symbol: stock.symbol,
+        p_name: stock.name,
+        p_sector: stock.sector ?? null,
+      });
+      if (error) {
+        console.error("watchlist 추가 오류:", error.message);
+        return;
+      }
+      await loadUserWatchlist(user.uid);
+    },
+    [user, loadUserWatchlist]
+  );
+
+  // 관심종목 제거
+  const handleRemove = useCallback(
+    async (symbol: string) => {
+      if (!user) return;
+      const { error } = await supabase.rpc("remove_from_watchlist", {
+        p_user_id: user.uid,
+        p_symbol: symbol,
+      });
+      if (error) {
+        console.error("watchlist 제거 오류:", error.message);
+        return;
+      }
+      await loadUserWatchlist(user.uid);
+    },
+    [user, loadUserWatchlist]
+  );
 
   if (!data) {
     return (
@@ -65,7 +122,30 @@ export default function Dashboard() {
     });
 
   const myPortfolioStocks = mapStockDetails(portfolio_list);
-  const watchListStocks = mapStockDetails(watchlist_list);
+
+  // 로그인 시: 개인 Supabase watchlist / 비로그인 시: Firebase 전체 watchlist
+  const userWatchlistSymbols = new Set(userWatchlist.map((w) => w.symbol));
+  const myWatchlistStocks: StockData[] = user
+    ? userWatchlist.map((w) => {
+        const safeKey = w.symbol.replace(".", "_");
+        return (
+          (stock_data[safeKey] as StockData) ?? {
+            symbol: w.symbol,
+            name: w.name,
+            price: 0,
+            change_percent: 0,
+            sector: w.sector,
+          }
+        );
+      })
+    : mapStockDetails(watchlist_list);
+
+  // 로그인 시: 아직 내 watchlist에 없는 Firebase 종목 = 추가 후보
+  const suggestedStocks: StockData[] = user
+    ? mapStockDetails(
+        watchlist_list.filter((sym) => !userWatchlistSymbols.has(sym))
+      )
+    : [];
 
   return (
     <main className="min-h-screen bg-slate-950 text-slate-200 font-sans">
@@ -117,13 +197,51 @@ export default function Dashboard() {
             {/* 관심종목 카드 */}
             <div className="bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-800">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                <Star size={14} className="text-emerald-500 fill-emerald-500" /> Watchlist
+                <Star size={14} className="text-emerald-500 fill-emerald-500" />
+                Watchlist
+                {user && (
+                  <span className="ml-auto text-[10px] text-slate-600 normal-case font-normal">
+                    내 관심종목
+                  </span>
+                )}
               </h3>
+
+              {/* 내 관심종목 */}
               <div className="space-y-3">
-                {watchListStocks.map((stock) => (
-                  <StockRow key={stock.symbol} stock={stock} variant="watchlist" />
-                ))}
+                {myWatchlistStocks.length === 0 && user ? (
+                  <p className="text-slate-600 text-xs text-center py-4">
+                    아래 후보 목록에서 + 버튼으로 추가하세요
+                  </p>
+                ) : (
+                  myWatchlistStocks.map((stock) => (
+                    <StockRow
+                      key={stock.symbol}
+                      stock={stock}
+                      variant="watchlist"
+                      onRemove={user ? () => handleRemove(stock.symbol) : undefined}
+                    />
+                  ))
+                )}
               </div>
+
+              {/* 추가 후보 (로그인 시, 아직 내 watchlist에 없는 종목) */}
+              {user && suggestedStocks.length > 0 && (
+                <div className="mt-6 pt-4 border-t border-slate-800">
+                  <p className="text-[10px] text-slate-600 uppercase font-bold tracking-widest mb-3">
+                    추가 가능 종목
+                  </p>
+                  <div className="space-y-2">
+                    {suggestedStocks.map((stock) => (
+                      <StockRow
+                        key={stock.symbol}
+                        stock={stock}
+                        variant="watchlist"
+                        onAdd={() => handleAdd(stock)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
           </section>

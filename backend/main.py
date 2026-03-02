@@ -32,6 +32,13 @@ def run_sync_engine_once():
     db_svc = DBService()
     now_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+    # 동적 Watchlist 로드 (Supabase DB)
+    # Supabase 미설정이거나 DB가 비어있으면 tickers.py 폴백 사용
+    dynamic_watchlist = db_svc.get_all_watchlist_symbols()
+    active_watchlist = dynamic_watchlist if dynamic_watchlist else WATCHLIST
+    # NAME_MAP 업데이트: 동적 watchlist 심볼 포함
+    active_name_map = {**NAME_MAP, **active_watchlist}
+
     # [A] 지수 및 주요 지표 업데이트
     logger.info("[Step A] 지수 및 주요 지표 수집 시작")
     indices_config = {
@@ -74,7 +81,7 @@ def run_sync_engine_once():
 
     for item in (us_stocks + kr_stocks):
         symbol = item['symbol']
-        info = NAME_MAP.get(symbol, {"name": symbol, "sector": "기타"})
+        info = active_name_map.get(symbol, {"name": symbol, "sector": "기타"})
         # [P3 Fix] Firebase 경로 금지 문자(. $ # [ ] /) 일괄 치환
         safe_key = re.sub(r'[.$#\[\]/]', '_', symbol)
 
@@ -86,7 +93,7 @@ def run_sync_engine_once():
 
         category = None
         if symbol in MY_PORTFOLIO: category = "portfolio"
-        elif symbol in WATCHLIST: category = "watchlist"
+        elif symbol in active_watchlist: category = "watchlist"
 
         if category:
             try:  # [P4 Fix] 개별 종목 뉴스 수집 실패 시 전체 중단 방지
@@ -122,14 +129,14 @@ def run_sync_engine_once():
         "news_feed": frontend_feed,
         "stock_data": stock_data_map,
         "portfolio_list": list(MY_PORTFOLIO.keys()),
-        "watchlist_list": list(WATCHLIST.keys())
+        "watchlist_list": list(active_watchlist.keys())
     }
 
     db_svc.save_final_feed(final_data)
 
     # [E] Supabase 주가 히스토리 저장
     logger.info("[Step E] Supabase 주가 히스토리 저장 시작")
-    all_symbols = list(MY_PORTFOLIO.keys()) + list(WATCHLIST.keys())
+    all_symbols = list(MY_PORTFOLIO.keys()) + list(active_watchlist.keys())
     history_records = []
     for symbol in all_symbols:
         history_records.extend(get_stock_history(symbol))

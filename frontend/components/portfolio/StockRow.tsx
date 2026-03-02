@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { LineChart } from "lucide-react";
+import { LineChart, Minus, Plus } from "lucide-react";
 import dynamic from "next/dynamic";
 import type { StockData } from "@/lib/types";
 
@@ -12,9 +12,16 @@ const StockChart = dynamic(() => import("@/components/chart/StockChart"), {
 interface StockRowProps {
   stock: StockData;
   variant?: "portfolio" | "watchlist";
+  onRemove?: () => void;
+  onAdd?: () => void;
 }
 
-export default function StockRow({ stock, variant = "portfolio" }: StockRowProps) {
+export default function StockRow({
+  stock,
+  variant = "portfolio",
+  onRemove,
+  onAdd,
+}: StockRowProps) {
   const [chartOpen, setChartOpen] = useState(false);
   const isPositive = stock.change_percent > 0;
   const changeColor = isPositive ? "text-red-400" : "text-blue-400";
@@ -29,7 +36,7 @@ export default function StockRow({ stock, variant = "portfolio" }: StockRowProps
               <p className="text-[10px] text-slate-600 mt-0.5">{stock.sector}</p>
             )}
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <div className="text-right">
               <div className="font-mono text-sm font-bold text-slate-300">
                 {stock.price?.toLocaleString()}
@@ -50,6 +57,24 @@ export default function StockRow({ stock, variant = "portfolio" }: StockRowProps
             >
               <LineChart size={14} />
             </button>
+            {onRemove && (
+              <button
+                onClick={onRemove}
+                className="p-1.5 rounded-lg text-slate-600 hover:text-red-400 hover:bg-red-500/10 transition-colors"
+                aria-label="관심종목 제거"
+              >
+                <Minus size={14} />
+              </button>
+            )}
+            {onAdd && (
+              <button
+                onClick={onAdd}
+                className="p-1.5 rounded-lg text-slate-600 hover:text-emerald-400 hover:bg-emerald-500/10 transition-colors"
+                aria-label="관심종목 추가"
+              >
+                <Plus size={14} />
+              </button>
+            )}
           </div>
         </div>
         {chartOpen && <StockChart symbol={stock.symbol} />}

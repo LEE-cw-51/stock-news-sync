@@ -1,3 +1,11 @@
+export interface WatchlistItem {
+  id: number;
+  user_id: string;
+  symbol: string;
+  name: string;
+  sector?: string;
+}
+
 export interface StockHistory {
   symbol: string;
   date: string;
