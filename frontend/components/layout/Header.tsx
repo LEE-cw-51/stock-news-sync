@@ -59,7 +59,18 @@ export default function Header({ macroList, indexList, user }: HeaderProps) {
               </button>
             ) : (
               <button
-                onClick={() => signInWithPopup(auth, googleProvider)}
+                onClick={async () => {
+                  try {
+                    await signInWithPopup(auth, googleProvider);
+                  } catch (error: unknown) {
+                    const code = (error as { code?: string }).code;
+                    if (code === "auth/popup-blocked") {
+                      alert("팝업이 차단되었습니다. 브라우저 팝업 차단을 해제해주세요.");
+                    } else if (code !== "auth/popup-closed-by-user") {
+                      console.error("로그인 실패:", error);
+                    }
+                  }
+                }}
                 className="flex items-center gap-2 px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold rounded-full transition-colors"
                 aria-label="Google 계정으로 로그인"
               >
