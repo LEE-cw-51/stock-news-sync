@@ -1,6 +1,7 @@
 # 프로젝트 진행 로그
 
 | 날짜 | 작업 내용 | 결과 | 다음 할 일 |
+| 2026-03-03 | CLAUDE.md 슬림화 및 docs/reference/ 레퍼런스 분리 | ✅ CLAUDE.md 296줄→113줄(62%↓) / docs/reference/ 4개 파일 신규 생성 (PROJECT_STRUCTURE, ENV_VARS, CONVENTIONS, DATA_SCHEMA) / 행동 수칙 10번 예외 조항 추가 (문서 수정 시 04번 직접 커밋 허용) / main 브랜치 push 완료 | Phase 3 Step 5 — AI 투자 비서 고도화 검토 |
 | :--- | :--- | :--- | :--- |
 | 2025-02-25 | 다중 에이전트 시스템 초기화 | CLAUDE.md, 서브에이전트 4개, docs/status 구조 완성 | 프론트엔드 대시보드 설계 |
 | 2025-02-25 | 05번 DevOps/SRE 및 06번 비서실장 영입, 중앙 보고 체계 수립 | 에이전트 6명 체제 + 운영 문서(AGENT_DIRECTORY, PLAYBOOK) 완성 | Phase 2 프론트엔드 대시보드 착수 |
