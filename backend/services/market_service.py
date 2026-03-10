@@ -49,7 +49,18 @@ def get_top_volume_stocks(ticker_list, top_n=10):
                 volume = t.fast_info.get('last_volume')
                 prev_close = t.fast_info.get('previous_close')
 
-                if volume is not None and price is not None:
+                # 장외 시간 fast_info None → history 폴백 (get_market_indices()와 동일 패턴)
+                if price is None:
+                    hist = t.history(period="5d")
+                    if hist.empty:
+                        logger.warning("fast_info 누락 + history 없음 (%s): skip", symbol)
+                        continue
+                    price = float(hist['Close'].iloc[-1])
+                    prev_close = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else None
+                    volume = int(hist['Volume'].iloc[-1]) if volume is None else volume
+                    logger.info("fast_info 폴백 (history) 사용: %s = %.2f", symbol, price)
+
+                if price is not None and volume is not None:
                     ranking.append({
                         "symbol": symbol,
                         "price": price,
