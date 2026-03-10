@@ -165,10 +165,14 @@ def run_sync_engine_once():
         "updated_at": now_str,
         "ai_summaries": ai_summaries,
         "news_feed": frontend_feed,
-        "stock_data": stock_data_map,
         "portfolio_list": list(MY_PORTFOLIO.keys()),
         "watchlist_list": list(active_watchlist.keys())
     }
+    # Firebase RTDB에서 빈 dict는 null로 처리되어 기존 데이터를 삭제함 → 데이터 있을 때만 포함
+    if stock_data_map:
+        final_data["stock_data"] = stock_data_map
+    else:
+        logger.warning("[Step D] stock_data 비어있음 — 기존 Firebase 데이터 보존")
 
     db_svc.save_final_feed(final_data)
 
