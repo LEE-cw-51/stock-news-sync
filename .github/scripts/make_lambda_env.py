@@ -8,6 +8,8 @@ import os
 
 config = {
     "FunctionName": "stock-news-sync",
+    "Timeout": 300,
+    "MemorySize": 256,
     "Environment": {
         "Variables": {
             "GROQ_API_KEY": os.environ.get("GROQ_API_KEY", "").strip(),
