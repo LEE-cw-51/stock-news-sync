@@ -5,6 +5,7 @@ interface ParsedSummary {
   bullets: string[];
   sentiment: "호재" | "악재" | "중립" | null;
   sentimentDesc: string;
+  trendInsight: string;
 }
 
 function parseAISummary(text: string): ParsedSummary {
@@ -12,12 +13,27 @@ function parseAISummary(text: string): ParsedSummary {
   const bullets: string[] = [];
   let sentiment: "호재" | "악재" | "중립" | null = null;
   let sentimentDesc = "";
+  let trendInsight = "";
+  let inTrend = false;
 
   for (const line of lines) {
     const cleaned = line.replace(/\*\*/g, "").trim();
     if (cleaned.startsWith("- ")) {
       bullets.push(cleaned.slice(2));
+      inTrend = false;
+      continue;
     }
+    if (cleaned.includes("📈") && cleaned.includes("추세 인사이트")) {
+      inTrend = true;
+      const colonIdx = cleaned.indexOf(":");
+      if (colonIdx !== -1) trendInsight = cleaned.slice(colonIdx + 1).trim();
+      continue;
+    }
+    if (inTrend && cleaned && !cleaned.match(/^[1-9]\./)) {
+      trendInsight += (trendInsight ? " " : "") + cleaned;
+      continue;
+    }
+    inTrend = false;
     if (cleaned.includes("호재") && !sentiment) {
       sentiment = "호재";
       sentimentDesc = cleaned.replace(/📊[^:]*:\s*/, "");
@@ -30,7 +46,7 @@ function parseAISummary(text: string): ParsedSummary {
     }
   }
 
-  return { bullets, sentiment, sentimentDesc };
+  return { bullets, sentiment, sentimentDesc, trendInsight };
 }
 
 const SENTIMENT_STYLES = {
@@ -122,6 +138,17 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
               </li>
             ))}
           </ul>
+
+          {parsed.trendInsight && parsed.trendInsight !== "추세 데이터 없음" && (
+            <div className="mt-3 pt-3 border-t border-slate-800/50">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
+                📈 추세 인사이트
+              </p>
+              <p className="text-slate-400 text-[11px] leading-relaxed">
+                {parsed.trendInsight}
+              </p>
+            </div>
+          )}
 
           {parsed.sentiment && (
             <div className="mt-4 pt-4 border-t border-slate-800/50">

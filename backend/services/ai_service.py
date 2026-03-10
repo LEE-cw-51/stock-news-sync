@@ -85,6 +85,7 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
     [출력 양식]
     1. 🔍 **핵심 요약**: 가장 중요한 이슈 3가지를 불렛포인트로 요약.
     2. 📊 **시장 반응 예상**: (단기적 관점에서 주가에 미칠 영향을 '호재', '악재', '중립' 중 하나로 명시하고 그 이유를 한 문장으로 서술)
+    3. 📈 **추세 인사이트**: 주가 추세 데이터(제공된 경우)를 기반으로 현재 추세(상승/하락/횡보)와 주목할 가격 레벨을 1-2문장으로 서술. 데이터가 없으면 '추세 데이터 없음'으로 표기.
     """
 
     models = MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"])
