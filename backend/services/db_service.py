@@ -46,6 +46,9 @@ class DBService:
         }
 
     def update_market_indices(self, path, updates):
+        if not updates:
+            logger.warning("RTDB skip (빈 updates): /feed/%s", path)
+            return
         try:
             self.rt.reference(f"/feed/{path}").update(updates)
             logger.info("RTDB updated: /feed/%s", path)
