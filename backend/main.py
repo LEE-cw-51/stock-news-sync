@@ -61,18 +61,22 @@ def run_sync_engine_once():
 
     # 1. 거시경제 뉴스
     for keyword in MACRO_KEYWORDS:
-        context, links = get_tavily_news(keyword)
-        if context:
-            ai_contexts["macro"] += f"\n[Keyword: {keyword}]\n{context}\n"
-            for item in links:
-                news_item = {
-                    "title": item.get("title"),
-                    "link": item.get("url"),
-                    "name": "Macro",
-                    "pubDate": item.get("date")  # [P1 Fix] news_service.py 반환 key는 "date"
-                }
-                frontend_feed["macro"].append(news_item)
-        time.sleep(1)
+        try:  # [P4 Fix] 개별 키워드 뉴스 수집 실패 시 전체 중단 방지 (종목 뉴스와 동일 패턴)
+            context, links = get_tavily_news(keyword)
+            if context:
+                ai_contexts["macro"] += f"\n[Keyword: {keyword}]\n{context}\n"
+                for item in links:
+                    news_item = {
+                        "title": item.get("title"),
+                        "link": item.get("url"),
+                        "name": "Macro",
+                        "pubDate": item.get("date")  # [P1 Fix] news_service.py 반환 key는 "date"
+                    }
+                    frontend_feed["macro"].append(news_item)
+            time.sleep(1)
+        except Exception as e:
+            logger.warning("매크로 뉴스 수집 실패 (%s): %s", keyword, e)
+            continue
 
     # 2. 종목 데이터 및 뉴스 수집
     us_stocks = get_top_volume_stocks(US_CANDIDATES, 15)

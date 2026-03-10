@@ -18,9 +18,15 @@ def get_market_indices(indices_config):
             # [P2 Fix] [] 직접 접근 → .get()으로 KeyError 방어
             price = t.fast_info.get('last_price')
             prev = t.fast_info.get('previous_close')
+            # fast_info 누락 시 history 폴백 (get_stock_history()와 동일 패턴)
             if price is None:
-                logger.warning("fast_info 누락 (%s): last_price", name)
-                continue
+                hist = t.history(period="5d")
+                if hist.empty:
+                    logger.warning("fast_info 누락 + history 없음 (%s): skip", name)
+                    continue
+                price = float(hist['Close'].iloc[-1])
+                prev = float(hist['Close'].iloc[-2]) if len(hist) >= 2 else None
+                logger.info("fast_info 폴백 (history) 사용: %s = %.2f", name, price)
             updates[name] = {
                 "price": round(price, 2),
                 "change_percent": calc_change(price, prev)
