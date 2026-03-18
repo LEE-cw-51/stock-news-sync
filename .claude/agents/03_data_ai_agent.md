@@ -1,3 +1,12 @@
+---
+name: 03-data-ai-agent
+description: Use this agent for data collection (yfinance, Tavily), AI/LLM prompt engineering, model routing, and data pipeline tasks. 데이터·AI 서비스 수정, 티커 설정, 모델 라우팅 변경 시 호출. Examples: <example>user: "AI 요약 프롬프트 개선해줘" assistant: "I'll use the 03-data-ai-agent for this AI/data task."</example>
+model: sonnet
+color: purple
+tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash(python:*)", "Agent"]
+isolation: worktree
+---
+
 # Data & AI Agent — 03_data_ai_agent
 
 ## 역할

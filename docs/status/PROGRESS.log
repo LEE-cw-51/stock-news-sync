@@ -1,6 +1,7 @@
 # 프로젝트 진행 로그
 
 | 날짜 | 작업 내용 | 결과 | 다음 할 일 |
+| 2026-03-19 | Claude Code 준수 강화 아키텍처 구현 | ✅ [레이어 0] isolation: worktree (01·03번 에이전트) / [레이어 1] 에이전트 frontmatter tools 제한 (01~04번) + Agent 도구 추가 / [레이어 2] Hooks 5종 (.claude/hooks/: block-direct-lambda, block-env-git-add, block-hardcoded-secrets, block-firebase-set, warn-uncommitted) + .claude/settings.json / [레이어 3] Skills 4종 신규 (qa, commit-kr, report, handoff) / [레이어 4] 내장 에이전트 타입(Explore/Plan/general-purpose) 통합 — CLAUDE.md 가이드 추가 | Phase 4 성능 최적화 착수 또는 SUPABASE Lambda 환경변수 주입 검토 |
 | 2026-03-03 | CLAUDE.md 슬림화 및 docs/reference/ 레퍼런스 분리 | ✅ CLAUDE.md 296줄→113줄(62%↓) / docs/reference/ 4개 파일 신규 생성 (PROJECT_STRUCTURE, ENV_VARS, CONVENTIONS, DATA_SCHEMA) / 행동 수칙 10번 예외 조항 추가 (문서 수정 시 04번 직접 커밋 허용) / main 브랜치 push 완료 | Phase 3 Step 5 — AI 투자 비서 고도화 검토 |
 | :--- | :--- | :--- | :--- |
 | 2025-02-25 | 다중 에이전트 시스템 초기화 | CLAUDE.md, 서브에이전트 4개, docs/status 구조 완성 | 프론트엔드 대시보드 설계 |
