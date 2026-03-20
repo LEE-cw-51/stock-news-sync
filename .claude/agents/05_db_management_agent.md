@@ -3,8 +3,23 @@ name: 05-db-management-agent
 description: Use this agent for database governance, schema management, Firebase RTDB path consistency, Supabase migrations, RLS audits, and DB security. DB 스키마 변경, RLS 감사, 심볼 키 정규화, 마이그레이션 DDL 초안 작성 시 호출. Examples: <example>user: "stock_history 테이블에 RLS 추가해줘" assistant: "I'll use the 05-db-management-agent for this database schema task."</example> <example>user: "Firebase 경로 일관성 점검해줘" assistant: "I'll use the 05-db-management-agent to audit the Firebase RTDB paths."</example>
 model: sonnet
 color: orange
-tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash(git:log,diff,status)", "Agent"]
+tools: [Read, Write, Edit, Grep, Glob, Bash, Agent]
 isolation: worktree
+memory: project
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: bash .claude/scripts/validate-git-readonly.sh
+    - matcher: Write
+      hooks:
+        - type: command
+          command: bash .claude/scripts/validate-db-write.sh
+    - matcher: Edit
+      hooks:
+        - type: command
+          command: bash .claude/scripts/validate-db-write.sh
 ---
 
 # DB Management Agent — 05_db_management_agent
