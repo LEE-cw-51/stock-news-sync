@@ -1,16 +1,20 @@
 [SESSION_HANDOFF_DATA]
-- Date: 2026-03-19
-- Last Active Agent: 04 Tech Lead PM (설계·구현)
+- Date: 2026-03-20
+- Last Active Agent: 04 Tech Lead PM (설계·감독)
 - Completed:
-  1. Claude Code 준수 강화 아키텍처 구현 (4-레이어 방어)
-     - 에이전트 frontmatter tools 제한 (01~04번) + isolation: worktree (01·03번)
-     - Hooks 5종 신규 작성 (.claude/hooks/)
-     - Skills 4종 신규 작성 (qa / commit-kr / report / handoff)
-     - .claude/settings.json Hook 이벤트 연결 (PreToolUse / PostToolUse / Stop)
-  2. 내장 에이전트 타입(Explore / Plan / general-purpose) 통합
-     - 01·02·03·04번 모두 "Agent" 도구 추가
-     - CLAUDE.md에 내장 에이전트 타입 활용 가이드 섹션 추가
-  3. CLAUDE.md 행동 수칙 정비 및 참조 문서 최신화
+  1. 05번 DB Management Agent 신규 생성
+     - .claude/agents/05_db_management_agent.md (orange, isolation: worktree)
+     - 역할: Firebase RTDB 경로 거버넌스, Supabase 스키마 관리, RLS 감사, 보안 감사
+     - Write 권한: supabase_schema.sql + DATA_SCHEMA.md 만 허용
+     - 미해결 보안 이슈 5개 내장 (stock_history RLS 미적용 외)
+  2. /db-audit Skill 신규 생성
+     - .claude/skills/db-audit/SKILL.md
+     - 4단계 감사: Firebase 경로 일관성 → Supabase RLS → 심볼 키 정규화 → 보안
+     - scope 인자: all|firebase|supabase|security
+  3. warn-db-schema-change.sh Hook 신규 생성
+     - .claude/hooks/warn-db-schema-change.sh
+     - db_service.py / supabase_schema.sql / market_service.py 수정 시 체크리스트 경고
+     - 차단 없음 (exit 0, 경고 전용)
 - Blocker/Issue: 없음
 - Next Action: Phase 4 성능 최적화 착수
   또는 SUPABASE Lambda 환경변수 주입 (sync.yml env 블록 추가) 검토
