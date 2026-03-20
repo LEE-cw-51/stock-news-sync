@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import AISummaryCard from "./AISummaryCard";
 import NewsCard from "./NewsCard";
 import AdBanner from "@/components/AdBanner";
-import type { NewsItem } from "@/lib/types";
+import type { NewsItem, AISummaryStructured } from "@/lib/types";
 
 type TabType = "macro" | "portfolio" | "watchlist";
 
@@ -29,9 +29,9 @@ interface NewsFeedSectionProps {
     watchlist?: NewsItem[];
   };
   aiSummaries?: {
-    macro?: string;
-    portfolio?: string;
-    watchlist?: string;
+    macro?: string | AISummaryStructured;
+    portfolio?: string | AISummaryStructured;
+    watchlist?: string | AISummaryStructured;
   };
 }
 
