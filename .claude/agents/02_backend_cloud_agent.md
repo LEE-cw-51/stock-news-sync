@@ -3,7 +3,7 @@ name: 02-backend-cloud-agent
 description: Use this agent for backend Python code, AWS Lambda packaging, GitHub Actions CI/CD, and git commits. 커밋/배포/인프라 작업 시 호출. Git 커밋 및 main 병합 단독 권한자. Examples: <example>user: "Lambda 패키징 오류 수정해줘" assistant: "I'll use the 02-backend-cloud-agent for this backend/deployment task."</example>
 model: sonnet
 color: green
-tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash", "Agent"]
+tools: [Read, Write, Edit, Grep, Glob, Bash, Agent]
 ---
 
 # Backend & Cloud Agent — 02_backend_cloud_agent

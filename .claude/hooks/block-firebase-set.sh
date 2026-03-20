@@ -3,7 +3,7 @@
 # ref.set()은 전체 경로를 덮어쓰므로 기존 데이터 손실 위험
 # 반드시 ref.update()를 사용해야 함
 
-FILE=$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('file_path',''))" 2>/dev/null || echo "")
+FILE=$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
 
 # db_service.py 파일만 검사
 if [[ "$FILE" != *"db_service.py" ]]; then

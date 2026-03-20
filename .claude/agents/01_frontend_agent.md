@@ -3,8 +3,14 @@ name: 01-frontend-agent
 description: Use this agent for frontend UI/UX, Next.js, React, Tailwind CSS tasks. 프론트엔드 컴포넌트, 디자인 시스템, Firebase 클라이언트 구독, 인증 흐름 구현 시 호출. Examples: <example>user: "대시보드 카드 컴포넌트 추가해줘" assistant: "I'll use the 01-frontend-agent for this frontend task."</example>
 model: sonnet
 color: blue
-tools: ["Read", "Write", "Edit", "Grep", "Glob", "Bash(npm:*)", "Agent"]
+tools: [Read, Write, Edit, Grep, Glob, Bash, Agent]
 isolation: worktree
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: bash .claude/scripts/validate-npm-only.sh
 ---
 
 # Frontend Agent — 01_frontend_agent
