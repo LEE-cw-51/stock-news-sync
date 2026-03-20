@@ -22,7 +22,7 @@ from backend.config.tickers import (
     MY_PORTFOLIO, WATCHLIST, MACRO_KEYWORDS
 )
 from backend.services.db_service import DBService
-from backend.services.market_service import get_market_indices, get_top_volume_stocks, get_stock_history
+from backend.services.market_service import get_market_indices, get_top_volume_stocks, get_stock_history  # get_stock_history: AI 추세 컨텍스트용
 from backend.services.news_service import get_tavily_news
 from backend.services.ai_service import generate_ai_summary
 
@@ -138,15 +138,13 @@ def run_sync_engine_once():
                 logger.warning("종목 뉴스 수집 실패 (%s): %s", symbol, e)
                 continue
 
-    # [B.5] 60일 주가 히스토리 수집 → 추세 컨텍스트 주입 (Step E 재사용)
+    # [B.5] 60일 주가 히스토리 수집 → AI 추세 컨텍스트 주입
     logger.info("[Step B.5] 주가 추세 컨텍스트 수집 시작")
     all_symbols = list(MY_PORTFOLIO.keys()) + list(active_watchlist.keys())
-    history_records = []
     for symbol in all_symbols:
         cat = "portfolio" if symbol in MY_PORTFOLIO else "watchlist"
         info = active_name_map.get(symbol, {"name": symbol})
         records = get_stock_history(symbol)
-        history_records.extend(records)
         trend_text = _build_trend_context(symbol, info['name'], records)
         if trend_text:
             ai_contexts[cat] += trend_text
@@ -175,11 +173,6 @@ def run_sync_engine_once():
         logger.warning("[Step D] stock_data 비어있음 — 기존 Firebase 데이터 보존")
 
     db_svc.save_final_feed(final_data)
-
-    # [E] Supabase 주가 히스토리 저장 (B.5에서 수집한 데이터 재사용 — 중복 API 호출 방지)
-    logger.info("[Step E] Supabase 주가 히스토리 저장 시작")
-    if history_records:
-        db_svc.save_stock_history(history_records)
 
     p_count = len(frontend_feed['portfolio'])
     w_count = len(frontend_feed['watchlist'])

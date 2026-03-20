@@ -103,23 +103,3 @@ class DBService:
             logger.error("Supabase watchlist 조회 오류: %s", e)
             return {}
 
-    def save_stock_history(self, records: list[dict]) -> None:
-        """Supabase stock_history 테이블에 OHLCV 데이터 UPSERT.
-
-        Args:
-            records: [{"symbol": str, "date": str, "open": float,
-                       "high": float, "low": float, "close": float,
-                       "volume": int}, ...]
-        """
-        if not self.supabase_url or not self.supabase_key:
-            logger.warning("SUPABASE_URL/KEY 미설정 — stock_history 저장 생략")
-            return
-        if not records:
-            return
-        try:
-            url = f"{self.supabase_url}/rest/v1/stock_history"
-            resp = requests.post(url, headers=self._supabase_headers, json=records, timeout=10)
-            resp.raise_for_status()
-            logger.info("Supabase stock_history UPSERT 완료: %d건", len(records))
-        except Exception as e:
-            logger.error("Supabase stock_history 저장 오류: %s", e)

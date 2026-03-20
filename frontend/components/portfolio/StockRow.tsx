@@ -2,12 +2,8 @@
 
 import { useState } from "react";
 import { LineChart, Minus, Plus } from "lucide-react";
-import dynamic from "next/dynamic";
+import StockChart from "@/components/chart/StockChart";
 import type { StockData } from "@/lib/types";
-
-const StockChart = dynamic(() => import("@/components/chart/StockChart"), {
-  ssr: false,
-});
 
 interface StockRowProps {
   stock: StockData;
