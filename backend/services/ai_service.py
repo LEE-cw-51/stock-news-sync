@@ -1,4 +1,6 @@
 import os
+import re
+import json
 import logging
 from openai import OpenAI, RateLimitError  # [P5 Fix] RateLimitError 타입 임포트
 from dotenv import load_dotenv
@@ -56,23 +58,43 @@ def _get_client_and_model(model_name: str):
     raise ValueError(f"알 수 없는 모델 prefix: {model_name}")
 
 
-def generate_ai_summary(stock_name: str, context: str, category: str = "watchlist") -> str:
+def _parse_json_response(raw: str) -> dict | None:
+    """
+    LLM 응답에서 JSON 객체를 추출합니다.
+    - 코드블록(```json ... ```) 제거 후 json.loads() 시도
+    - 실패 시 None 반환 (호출자가 문자열 폴백 처리)
+    """
+    # 코드블록 제거: ```json ... ``` 또는 ``` ... ```
+    cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
+    try:
+        parsed = json.loads(cleaned)
+        # 필수 키 검증
+        if isinstance(parsed, dict) and "bullets" in parsed and "market_reaction" in parsed:
+            return parsed
+        return None
+    except (json.JSONDecodeError, ValueError):
+        return None
+
+
+def generate_ai_summary(stock_name: str, context: str, category: str = "watchlist") -> dict | str:
     """
     카테고리별 최적 모델로 AI 브리핑을 생성합니다.
     - 모델 우선순위: backend/config/models.py 에서 설정
     - category: "macro" | "portfolio" | "watchlist"
+    - 반환값: JSON 파싱 성공 시 dict, 실패 시 원본 문자열 (하위 호환 폴백)
     """
     if not context:
         return "최근 24시간 내 관련된 중요 뉴스 데이터가 없습니다."
 
-    # 환각 방지 시스템 프롬프트
+    # 환각 방지 + JSON 전용 출력 시스템 프롬프트
     system_prompt = """당신은 월스트리트의 시니어 주식 애널리스트입니다.
 당신의 유일한 목표는 제공된 [뉴스 원문]에서 '팩트'와 '수치'만을 추출하여 투자자에게 객관적인 브리핑을 제공하는 것입니다.
 [절대 규칙 - 위반 시 페널티]
 1. 환각 금지: 제공된 [뉴스 원문]에 없는 정보나 과거 지식은 절대 지어내지 마십시오.
 2. 수치 우선: 주가, 목표가, 실적 퍼센트(%), 날짜 등 숫자가 포함된 문맥은 반드시 요약에 포함하십시오.
 3. 간결성: 미사여구를 빼고 건조하고 전문적인 리포트 톤(개조식)으로 작성하십시오.
-4. 언어: 반드시 자연스러운 한국어로 출력하십시오."""
+4. 언어: 반드시 자연스러운 한국어로 출력하십시오.
+5. JSON ONLY: 반드시 아래 JSON 형식으로만 응답하십시오. 마크다운, 코드블록, 설명 텍스트 없이 순수 JSON만 출력하십시오."""
 
     user_prompt = f"""
     [분석 대상 종목]: {stock_name}
@@ -80,12 +102,17 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
     [뉴스 데이터]
     {context}
     [임무]
-    위 뉴스들을 분석하여 '{stock_name}'에 대한 투자자용 브리핑을 작성하세요.
+    위 뉴스들을 분석하여 '{stock_name}'에 대한 투자자용 브리핑을 다음 JSON 형식으로 작성하세요.
 
-    [출력 양식]
-    1. 🔍 **핵심 요약**: 가장 중요한 이슈 3가지를 불렛포인트로 요약.
-    2. 📊 **시장 반응 예상**: (단기적 관점에서 주가에 미칠 영향을 '호재', '악재', '중립' 중 하나로 명시하고 그 이유를 한 문장으로 서술)
-    3. 📈 **추세 인사이트**: 주가 추세 데이터(제공된 경우)를 기반으로 현재 추세(상승/하락/횡보)와 주목할 가격 레벨을 1-2문장으로 서술. 데이터가 없으면 '추세 데이터 없음'으로 표기.
+    [출력 형식 - 순수 JSON만, 코드블록 없이]
+    {{
+      "bullets": ["핵심 포인트 1 (수치 포함)", "핵심 포인트 2", "핵심 포인트 3"],
+      "market_reaction": {{
+        "verdict": "호재 또는 악재 또는 중립",
+        "reason": "단기 주가 영향 이유 한 문장"
+      }},
+      "trend_insight": "주가 추세 데이터 기반 1-2문장 또는 추세 데이터 없음"
+    }}
     """
 
     models = MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"])
@@ -114,9 +141,17 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
             if response.choices[0].finish_reason == "length":
                 raise Exception("출력이 토큰 제한으로 잘림 - 다음 모델로 전환")
 
-            result = response.choices[0].message.content
-            logger.info(f"✅ AI 분석 완료 (모델: {model_name})")
-            return result
+            raw = response.choices[0].message.content or ""
+
+            # JSON 파싱 시도 → 성공 시 dict 반환, 실패 시 원본 문자열 폴백
+            parsed = _parse_json_response(raw)
+            if parsed is not None:
+                logger.info(f"✅ AI 분석 완료 (모델: {model_name}, 형식: JSON)")
+                return parsed
+            else:
+                logger.warning(f"⚠️ {model_name} JSON 파싱 실패 - 문자열 폴백 반환")
+                logger.info(f"✅ AI 분석 완료 (모델: {model_name}, 형식: 문자열 폴백)")
+                return raw
 
         except RateLimitError:
             # [P5 Fix] openai SDK의 RateLimitError(HTTP 429)를 타입으로 정확히 감지
