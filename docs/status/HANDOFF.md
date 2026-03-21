@@ -2,16 +2,13 @@
 - Date: 2026-03-22
 - Last Active Agent: 04 Tech Lead PM (설계·감독)
 - Completed:
-  1. SUPABASE Lambda 환경변수 주입
-     - .github/workflows/sync.yml env 블록에 SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY 추가
-     - Watchlist 개인 종목 관리 프로덕션 정상 동작 가능
-  2. 뉴스 노이즈 필터링 2단계 업그레이드
-     - backend/services/news_service.py: _bm25_rerank() + _add_sentiment() 추가
-     - backend/requirements.txt: rank-bm25 + vaderSentiment 추가
-     - 파이프라인: Tavily → score 필터 → BM25 재랭킹(top-3) → VADER 감성 메타데이터 → dedup
-  3. 뉴스 파이프라인 개선 로드맵 확정 (4개 항목)
-     - 완료: 노이즈 필터링 (2순위)
-     - 대기: NewsAPI 추가(1순위) → 금융 학습 콘텐츠(4순위) → 요약 시각화(3순위)
-- Blocker/Issue: 없음
-- Next Action: 뉴스 소스 다변화 — NewsAPI 추가 (GitHub Secrets에 NEWSAPI_KEY 등록 필요)
+  1. Naver News API 통합 — 한국 종목·거시경제 뉴스 한국어 수집
+     - backend/services/news_service.py: get_naver_news() 추가 (HTML 태그 제거 → BM25 → VADER → dedup)
+     - backend/config/tickers.py: KS 종목에 kr_name 필드 추가(삼성전자·네이버) + KR_MACRO_KEYWORDS 4개 추가
+     - backend/main.py: .KS 종목 Naver 뉴스 라우팅, 한국 거시뉴스 Step 1-2 추가
+     - .github/workflows/sync.yml + make_lambda_env.py: NAVER_CLIENT_ID·NAVER_CLIENT_SECRET 추가
+     - main 브랜치 병합·push 완료 (ea63f8b)
+- Blocker/Issue: 사용자가 Naver Developers에서 API 키 발급 후 GitHub Secrets 등록 필요
+  (미등록 시 graceful skip — 기존 Tavily 동작 유지)
+- Next Action: 사용자 Naver API 키 등록 후 Lambda 재배포 검증
   또는 금융 학습 콘텐츠 (glossary + flow_explanation AI 프롬프트 추가)
