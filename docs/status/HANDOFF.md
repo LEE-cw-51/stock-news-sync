@@ -1,20 +1,17 @@
 [SESSION_HANDOFF_DATA]
-- Date: 2026-03-20
+- Date: 2026-03-22
 - Last Active Agent: 04 Tech Lead PM (설계·감독)
 - Completed:
-  1. 05번 DB Management Agent 신규 생성
-     - .claude/agents/05_db_management_agent.md (orange, isolation: worktree)
-     - 역할: Firebase RTDB 경로 거버넌스, Supabase 스키마 관리, RLS 감사, 보안 감사
-     - Write 권한: supabase_schema.sql + DATA_SCHEMA.md 만 허용
-     - 미해결 보안 이슈 5개 내장 (stock_history RLS 미적용 외)
-  2. /db-audit Skill 신규 생성
-     - .claude/skills/db-audit/SKILL.md
-     - 4단계 감사: Firebase 경로 일관성 → Supabase RLS → 심볼 키 정규화 → 보안
-     - scope 인자: all|firebase|supabase|security
-  3. warn-db-schema-change.sh Hook 신규 생성
-     - .claude/hooks/warn-db-schema-change.sh
-     - db_service.py / supabase_schema.sql / market_service.py 수정 시 체크리스트 경고
-     - 차단 없음 (exit 0, 경고 전용)
+  1. SUPABASE Lambda 환경변수 주입
+     - .github/workflows/sync.yml env 블록에 SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY 추가
+     - Watchlist 개인 종목 관리 프로덕션 정상 동작 가능
+  2. 뉴스 노이즈 필터링 2단계 업그레이드
+     - backend/services/news_service.py: _bm25_rerank() + _add_sentiment() 추가
+     - backend/requirements.txt: rank-bm25 + vaderSentiment 추가
+     - 파이프라인: Tavily → score 필터 → BM25 재랭킹(top-3) → VADER 감성 메타데이터 → dedup
+  3. 뉴스 파이프라인 개선 로드맵 확정 (4개 항목)
+     - 완료: 노이즈 필터링 (2순위)
+     - 대기: NewsAPI 추가(1순위) → 금융 학습 콘텐츠(4순위) → 요약 시각화(3순위)
 - Blocker/Issue: 없음
-- Next Action: Phase 4 성능 최적화 착수
-  또는 SUPABASE Lambda 환경변수 주입 (sync.yml env 블록 추가) 검토
+- Next Action: 뉴스 소스 다변화 — NewsAPI 추가 (GitHub Secrets에 NEWSAPI_KEY 등록 필요)
+  또는 금융 학습 콘텐츠 (glossary + flow_explanation AI 프롬프트 추가)
