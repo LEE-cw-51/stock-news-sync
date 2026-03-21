@@ -1,5 +1,7 @@
 import os
+import re
 import logging
+import requests
 from difflib import SequenceMatcher
 from rank_bm25 import BM25Okapi
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -129,4 +131,70 @@ def get_tavily_news(query: str) -> tuple[str, list[dict]]:  # [P7 Fix] 타입 �
 
     except Exception as e:
         logger.warning("Tavily 검색 실패 (%s): %s", query, e)  # [P6 Fix] print → logger.warning
+        return "", []
+
+
+_html_tag_re = re.compile(r'<[^>]+>')
+
+
+def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
+    """
+    Naver News API를 이용해 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
+
+    파이프라인:
+    Naver Search API(display=5, sort=date) → HTML 태그 제거 → BM25 재랭킹(top-3)
+    → context/links 생성 → VADER 감성 추가 → dedup → 반환
+    """
+    client_id = os.getenv("NAVER_CLIENT_ID", "")
+    client_secret = os.getenv("NAVER_CLIENT_SECRET", "")
+    if not client_id or not client_secret:
+        logger.warning("NAVER_CLIENT_ID/SECRET 미설정 — 네이버 뉴스 스킵")
+        return "", []
+
+    logger.info("Naver 뉴스 검색 시작: %s", query)
+
+    try:
+        resp = requests.get(
+            "https://openapi.naver.com/v1/search/news.json",
+            headers={
+                "X-Naver-Client-Id": client_id,
+                "X-Naver-Client-Secret": client_secret,
+            },
+            params={"query": query, "display": display, "sort": "date"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        items = resp.json().get("items", [])
+
+        # 네이버 API 응답에 포함된 HTML 태그 제거 (예: <b>삼성전자</b>)
+        results = [
+            {
+                "title": _html_tag_re.sub("", item.get("title", "")),
+                "content": _html_tag_re.sub("", item.get("description", "")),
+                "url": item.get("link", ""),
+                "published_date": item.get("pubDate", ""),
+            }
+            for item in items
+        ]
+
+        # BM25 재랭킹
+        results = _bm25_rerank(query, results)
+
+        context = "\n\n".join([
+            f"[{i+1}. {r['title']}]\n{r['content']}"
+            for i, r in enumerate(results)
+        ])
+
+        links = [
+            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
+            for r in results
+        ]
+
+        links = _add_sentiment(links)
+        links = _deduplicate_links(links)
+
+        return context, links
+
+    except Exception as e:
+        logger.warning("Naver 뉴스 검색 실패 (%s): %s", query, e)
         return "", []

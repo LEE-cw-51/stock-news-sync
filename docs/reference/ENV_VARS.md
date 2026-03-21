@@ -12,6 +12,8 @@ FIREBASE_SERVICE_ACCOUNT=<JSON 문자열 또는 파일 경로>
 FIREBASE_DATABASE_URL=https://stock-news-sync-default-rtdb.firebaseio.com
 SUPABASE_URL=https://<project-ref>.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=...   # service_role 키 (Lambda 전용, 프론트엔드 금지)
+NAVER_CLIENT_ID=...             # Naver Developers 애플리케이션 Client ID (검색 API)
+NAVER_CLIENT_SECRET=...         # Naver Developers 애플리케이션 Client Secret
 ```
 
 ## frontend/.env.local (로컬 개발)
@@ -38,6 +40,8 @@ FIREBASE_SERVICE_ACCOUNT
 FIREBASE_DATABASE_URL
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
+NAVER_CLIENT_ID
+NAVER_CLIENT_SECRET
 AWS_ACCESS_KEY_ID
 AWS_SECRET_ACCESS_KEY
 VERCEL_TOKEN
