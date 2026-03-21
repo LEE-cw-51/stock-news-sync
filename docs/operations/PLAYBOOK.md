@@ -1,7 +1,7 @@
 # 협업 플레이북 (Standard Operating Procedures)
 
 > 관리 주체: **04번 Tech Lead PM**
-> 최종 수정: 2026-02-27
+> 최종 수정: 2026-03-21
 
 ---
 
@@ -27,7 +27,8 @@ Step 2. 04번 Tech Lead PM — 작업 분배
     │   요청을 분석하여 적절한 에이전트에게 할당한다.
     │   ├── UI/UX·디자인 개편 → 01번 (Frontend)
     │   ├── 백엔드 로직·인프라 → 02번 (Backend Cloud)
-    │   └── 데이터·AI 파이프라인 → 03번 (Data & AI)
+    │   ├── 데이터·AI 파이프라인 → 03번 (Data & AI)
+    │   └── DB 스키마·RLS·RTDB 경로 변경 → 05번 (DB Management) via 04번
     ↓
 Step 3. 담당 에이전트 — 작업 수행
     │   코드 작성, 수정, 테스트를 수행한다.
@@ -139,13 +140,13 @@ Step 4. AGENT_DIRECTORY.md 갱신 (에이전트 변동 시)
 **모든 커밋 및 병합 권한은 02번(Backend Cloud)이 단독으로 보유한다.**
 
 ```
-Step 1. 02번 — 작업용 브랜치 생성
-    │   기능 개발: feat/기능명  (예: feat/news-dashboard)
-    │   버그 수정: fix/이슈명   (예: fix/firebase-auth-error)
-    │   핫픽스:   hotfix/내용   (예: hotfix/lambda-timeout)
+Step 1. 02번 — 작업용 브랜치 및 워크트리 생성
+    │   /commit-kr 으로 브랜치명 먼저 확정한 후:
+    │   /worktree start <branch-name>
+    │   예: /worktree start feat/p3-watchlist-ui
     ↓
 Step 2. 개발 에이전트(01/03) — 코드 작성
-    │   각 담당 에이전트가 해당 브랜치에서 코드를 작성한다.
+    │   각 담당 에이전트가 해당 워크트리에서 코드를 작성한다.
     │   직접 커밋은 불가 — 변경 파일 목록을 02번에 전달한다.
     ↓
 Step 3. 04번(Tech Lead PM) — 코드 검수
@@ -167,7 +168,12 @@ Step 4. 02번 — 한글 컨벤션 커밋 및 병합
     │   병합 후 CI/CD(GitHub Actions)가 자동으로 Lambda 배포를 시작한다.
     ↓
 Step 5. 04번(Tech Lead PM) — 최종 보고
-        커밋 내역, 배포 결과, 변경 요약을 사용자에게 브리핑한다.
+    │   커밋 내역, 배포 결과, 변경 요약을 사용자에게 브리핑한다.
+    ↓
+세션 종료 시 정리:
+    02번: /worktree clean  실행
+        — 병합 완료 브랜치 자동 탐지 및 삭제
+        — git worktree prune 자동 수행
 ```
 
 ### 브랜치 네이밍 규칙
@@ -319,3 +325,4 @@ Step 7. 기존 DB 제거는 신규 DB 안정화 확인 후 진행
 | 백엔드 로직 수정, 인프라 작업 | 02번 | 서비스 함수 추가, CI/CD 수정, Lambda 설정, Git 커밋 |
 | AI 요약 품질 개선, 데이터 수집 | 03번 | 프롬프트 수정, 모델 라우팅 변경, 데이터 파이프라인 |
 | 전체 상황 브리핑, 코드 리뷰, 승인 요청 | 04번 | 진행 보고, 보안 점검, 빌드 검증, 의사결정 |
+| DB 스키마 변경, RLS 감사, RTDB 경로 검토 | 05번 via 04번 | supabase_schema.sql 수정, stock_history RLS 추가, /feed/ 경로 변경 |

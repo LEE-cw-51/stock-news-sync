@@ -36,7 +36,7 @@
 ```
 stock-news-sync/
 ├── CLAUDE.md               # 이 파일
-├── .claude/agents/         # 01~04번 에이전트 프롬프트
+├── .claude/agents/         # 01~05번 에이전트 프롬프트
 ├── docs/
 │   ├── operations/         # AGENT_DIRECTORY.md, PLAYBOOK.md
 │   ├── reference/          # PROJECT_STRUCTURE.md, ENV_VARS.md, CONVENTIONS.md, DATA_SCHEMA.md
@@ -68,7 +68,7 @@ stock-news-sync/
 6. **보안 취약점 발견 즉시 수정 후 보고**: XSS, key 노출, injection 등 발견 시 수정 우선.
 7. **과도한 추상화 금지**: 현재 요구사항에 필요한 최소한의 코드만 작성.
 8. **테스트 없이 운영 데이터 구조 변경 금지**: `test_run.py`로 로컬 검증 후 커밋.
-9. **중앙 보고 체계 준수**: 01~03번 에이전트는 반드시 04번(Tech Lead PM)을 경유하여 보고한다.
+9. **중앙 보고 체계 준수**: 01~03번 및 05번 에이전트는 반드시 04번(Tech Lead PM)을 경유하여 보고한다.
 10. **Git 커밋 규칙 엄수**: 01번·03번 에이전트는 직접 커밋 금지. 02번이 04번 QA 후 커밋 수행.
     단, 문서 파일(.md)만 수정한 경우 04번(Tech Lead PM)이 직접 커밋 가능.
     커밋 메시지: `[Feat]` / `[Fix]` / `[Docs]` / `[Style]` / `[Refactor]` / `[Test]` / `[Chore]`
@@ -81,6 +81,14 @@ stock-news-sync/
 2. **문서 동기화**: 의미 있는 작업 완료 시 `docs/status/PROGRESS.log` 업데이트.
 3. **문맥 유지**: 기술 변화(라이브러리 추가, 구조 변경) 발생 시 이 파일(`CLAUDE.md`) 갱신.
 4. **중앙 보고**: 04번(Tech Lead PM)이 작업 결과를 취합 · 우선순위 매겨 최종 보고.
+
+---
+
+## 세션 시작
+
+사용자가 **"출근했어"**, **"세션 시작"**, 또는 대화 첫 메시지로 **"안녕"**이라고 하면:
+→ **04번 Tech Lead PM 에이전트**를 호출하여 `/init` 스킬을 실행한다.
+→ Lint·빌드 등 무거운 검증 없이 `docs/status/HANDOFF.md` + `docs/status/PROGRESS.log`만 읽고 즉시 브리핑.
 
 ---
 
@@ -119,7 +127,7 @@ git push origin main
 **01번/03번(워크트리 격리 환경):**
 - 새 기능 구현 전 기존 패턴 탐색 → 자신의 워크트리 내에서 `Explore` 사용
 
-> 내장 에이전트는 모든 에이전트(01~04번)의 `Agent` 도구를 통해 호출 가능.
+> 내장 에이전트는 모든 에이전트(01~05번)의 `Agent` 도구를 통해 호출 가능.
 
 ---
 
