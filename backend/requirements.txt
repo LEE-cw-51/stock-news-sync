@@ -4,6 +4,8 @@ python-dotenv
 tavily-python
 openai
 psycopg2-binary
+rank-bm25
+vaderSentiment
 
 # --- Future Use (Chatbot) ---
 # openai
