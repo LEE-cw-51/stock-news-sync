@@ -36,7 +36,8 @@ MODEL_CONFIG: dict[str, list[str]] = {
 }
 
 # 출력 토큰 한도 (모든 모델 공통)
-MAX_TOKENS: int = 1500
+# JSON 구조화 출력으로 전환하면서 1500 → 2000으로 상향 (JSON 형식 토큰 소모 증가)
+MAX_TOKENS: int = 2000
 
 # 창의성 억제 (팩트 기반 분석을 위해 낮게 설정)
 TEMPERATURE: float = 0.2

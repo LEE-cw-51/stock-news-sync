@@ -28,6 +28,15 @@ export interface NewsItem {
   pubDate?: string;
 }
 
+export interface AISummaryStructured {
+  bullets: string[];
+  market_reaction: {
+    verdict: "호재" | "악재" | "중립";
+    reason: string;
+  };
+  trend_insight: string;
+}
+
 export interface FeedData {
   updated_at?: string;
   market_indices?: {
@@ -37,9 +46,9 @@ export interface FeedData {
   key_indicators?: Record<string, MarketValue>;
   stock_data?: Record<string, StockData>;
   ai_summaries?: {
-    macro?: string;
-    portfolio?: string;
-    watchlist?: string;
+    macro?: string | AISummaryStructured;
+    portfolio?: string | AISummaryStructured;
+    watchlist?: string | AISummaryStructured;
   };
   portfolio_list?: string[];
   watchlist_list?: string[];

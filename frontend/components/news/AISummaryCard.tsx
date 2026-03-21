@@ -1,5 +1,6 @@
 import { Zap, Briefcase, Star } from "lucide-react";
 import type { ReactNode } from "react";
+import type { AISummaryStructured } from "@/lib/types";
 
 interface ParsedSummary {
   bullets: string[];
@@ -49,6 +50,22 @@ function parseAISummary(text: string): ParsedSummary {
   return { bullets, sentiment, sentimentDesc, trendInsight };
 }
 
+function normalizeAISummary(input: string | AISummaryStructured): ParsedSummary {
+  if (typeof input === "object" && input !== null) {
+    // JSON 구조화 데이터 → 직접 매핑
+    return {
+      bullets: input.bullets ?? [],
+      sentiment: (["호재", "악재", "중립"].includes(input.market_reaction?.verdict)
+        ? input.market_reaction.verdict
+        : null) as "호재" | "악재" | "중립" | null,
+      sentimentDesc: input.market_reaction?.reason ?? "",
+      trendInsight: input.trend_insight ?? "",
+    };
+  }
+  // 문자열 → 기존 정규식 파서 폴백 (하위 호환)
+  return parseAISummary(input);
+}
+
 const SENTIMENT_STYLES = {
   호재: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
   악재: "bg-red-500/20 text-red-400 border border-red-500/30",
@@ -87,7 +104,7 @@ const CATEGORY_STYLES: Record<CategoryType, CategoryStyle> = {
 
 interface AISummaryCardProps {
   category: CategoryType;
-  summary?: string;
+  summary?: string | AISummaryStructured;
 }
 
 export default function AISummaryCard({ category, summary }: AISummaryCardProps) {
@@ -106,7 +123,7 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
     );
   }
 
-  const parsed = parseAISummary(summary);
+  const parsed = normalizeAISummary(summary);
 
   return (
     <div className={`p-6 rounded-3xl border ${style.gradient} relative overflow-hidden`}>
@@ -168,7 +185,7 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
         </div>
       ) : (
         <div className="text-slate-300 text-sm leading-8 whitespace-pre-wrap font-medium relative z-10">
-          {summary}
+          {typeof summary === "string" ? summary : ""}
         </div>
       )}
     </div>

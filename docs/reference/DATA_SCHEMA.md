@@ -1,6 +1,6 @@
 # 데이터 스키마 & AI 모델 라우팅
 
-> 최종 업데이트: 2026-03-03
+> 최종 업데이트: 2026-03-20
 
 ---
 
@@ -52,5 +52,33 @@
 | portfolio | Groq GPT-OSS | Gemini Pro | Llama 3.1 |
 | watchlist | Llama 3.1 | Gemini Flash | Groq GPT-OSS |
 
-- **공통 설정**: `MAX_TOKENS=1000`, `TEMPERATURE=0.2`
+- **공통 설정**: `MAX_TOKENS=2000`, `TEMPERATURE=0.2`
 - **쿼터 관리**: `_quota_exceeded_models` — 세션 내 재시도 방지
+
+---
+
+## AI 요약 데이터 구조 (`/feed/ai_summaries/`)
+
+> 2026-03-20: 마크다운 문자열 → 구조화 JSON 객체로 전환 (RealFinTutor Phase 1)
+
+### 현재 구조 (JSON 객체)
+
+```json
+{
+  "macro": {
+    "bullets": ["핵심 포인트 1 (수치 포함)", "핵심 포인트 2", "핵심 포인트 3"],
+    "market_reaction": {
+      "verdict": "호재 | 악재 | 중립",
+      "reason": "단기 주가 영향 이유 한 문장"
+    },
+    "trend_insight": "추세 설명 1-2문장 또는 '추세 데이터 없음'"
+  },
+  "portfolio": { ... },
+  "watchlist": { ... }
+}
+```
+
+### 하위 호환 폴백
+
+Lambda 장애 또는 LLM JSON 파싱 실패 시 기존 마크다운 문자열이 저장될 수 있음.
+프론트엔드(`AISummaryCard.tsx`)는 `typeof input === 'string'` 분기로 기존 정규식 파서로 폴백 처리.
