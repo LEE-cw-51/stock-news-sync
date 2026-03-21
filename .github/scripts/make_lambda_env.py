@@ -19,6 +19,8 @@ config = {
             "FIREBASE_DATABASE_URL": os.environ.get("FIREBASE_DATABASE_URL", "").strip(),
             "SUPABASE_URL": os.environ.get("SUPABASE_URL", "").strip(),
             "SUPABASE_SERVICE_ROLE_KEY": os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "").strip(),
+            "NAVER_CLIENT_ID": os.environ.get("NAVER_CLIENT_ID", "").strip(),
+            "NAVER_CLIENT_SECRET": os.environ.get("NAVER_CLIENT_SECRET", "").strip(),
         }
     }
 }

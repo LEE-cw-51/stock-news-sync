@@ -15,13 +15,13 @@ USER_PROFILE = {
     "username": "Investor_01",
     "portfolio": {
         "NVDA": {"name": "NVIDIA", "sector": "AI & Semiconductor", "shares": 50},
-        "005930.KS": {"name": "Samsung Electronics", "sector": "Memory Chip", "shares": 100},
+        "005930.KS": {"name": "Samsung Electronics", "kr_name": "삼성전자", "sector": "Memory Chip", "shares": 100},
         "TSLA": {"name": "Tesla", "sector": "EV & Automotive", "shares": 30}
     },
     "watchlist": {
         "AAPL": {"name": "Apple", "sector": "Consumer Electronics"},
         "MSFT": {"name": "Microsoft", "sector": "Cloud & AI"},
-        "035420.KS": {"name": "NAVER", "sector": "Platform & Internet"}
+        "035420.KS": {"name": "NAVER", "kr_name": "네이버", "sector": "Platform & Internet"}
     },
     # 사용자가 특별히 관심 있어 하는 거시 경제 주제 (옵션)
     "interests": ["Interest Rates", "Exchange Rates"] 
@@ -74,6 +74,14 @@ def generate_keywords(profile, sectors):
 # 1. 키워드 생성 실행
 _active_sectors = extract_sectors(USER_PROFILE)
 MACRO_KEYWORDS = generate_keywords(USER_PROFILE, _active_sectors)
+
+# 한국 거시경제 뉴스 키워드 (Naver News API 전용)
+KR_MACRO_KEYWORDS = [
+    "코스피 코스닥 시장 동향",
+    "한국은행 기준금리",
+    "원달러 환율 전망",
+    "한국 경제 뉴스",
+]
 
 # 2. 포트폴리오 및 관심종목 매핑
 MY_PORTFOLIO = USER_PROFILE['portfolio']

@@ -19,11 +19,11 @@ load_dotenv()
 
 from backend.config.tickers import (
     NAME_MAP, US_CANDIDATES, KR_CANDIDATES,
-    MY_PORTFOLIO, WATCHLIST, MACRO_KEYWORDS
+    MY_PORTFOLIO, WATCHLIST, MACRO_KEYWORDS, KR_MACRO_KEYWORDS
 )
 from backend.services.db_service import DBService
 from backend.services.market_service import get_market_indices, get_top_volume_stocks, get_stock_history  # get_stock_history: AI 추세 컨텍스트용
-from backend.services.news_service import get_tavily_news
+from backend.services.news_service import get_tavily_news, get_naver_news
 from backend.services.ai_service import generate_ai_summary
 
 def _build_trend_context(symbol: str, name: str, records: list) -> str:
@@ -80,7 +80,7 @@ def run_sync_engine_once():
     frontend_feed = { "portfolio": [], "watchlist": [], "macro": [] }
     ai_contexts = { "macro": "", "portfolio": "", "watchlist": "" }
 
-    # 1. 거시경제 뉴스
+    # 1. 거시경제 뉴스 (영문 — Tavily)
     for keyword in MACRO_KEYWORDS:
         try:  # [P4 Fix] 개별 키워드 뉴스 수집 실패 시 전체 중단 방지 (종목 뉴스와 동일 패턴)
             context, links = get_tavily_news(keyword)
@@ -97,6 +97,25 @@ def run_sync_engine_once():
             time.sleep(1)
         except Exception as e:
             logger.warning("매크로 뉴스 수집 실패 (%s): %s", keyword, e)
+            continue
+
+    # 1-2. 한국 거시경제 뉴스 (한국어 — Naver)
+    for keyword in KR_MACRO_KEYWORDS:
+        try:
+            context, links = get_naver_news(keyword)
+            if context:
+                ai_contexts["macro"] += f"\n[한국 거시: {keyword}]\n{context}\n"
+                for item in links:
+                    news_item = {
+                        "title": item.get("title"),
+                        "link": item.get("url"),
+                        "name": "한국 거시경제",
+                        "pubDate": item.get("date")
+                    }
+                    frontend_feed["macro"].append(news_item)
+            time.sleep(1)
+        except Exception as e:
+            logger.warning("한국 거시뉴스 수집 실패 (%s): %s", keyword, e)
             continue
 
     # 2. 종목 데이터 및 뉴스 수집
@@ -122,7 +141,12 @@ def run_sync_engine_once():
 
         if category:
             try:  # [P4 Fix] 개별 종목 뉴스 수집 실패 시 전체 중단 방지
-                context, links = get_tavily_news(info['name'])
+                # KS 종목은 Naver News API로 한국어 뉴스 수집, 그 외는 Tavily 사용
+                kr_name = info.get("kr_name")
+                if symbol.endswith(".KS") and kr_name:
+                    context, links = get_naver_news(kr_name)
+                else:
+                    context, links = get_tavily_news(info['name'])
                 if context:
                     ai_contexts[category] += f"\n[{info['name']}]\n{context}\n"
                     for link_data in links:
