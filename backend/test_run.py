@@ -26,6 +26,21 @@ def test_news_and_ai():
         summary = generate_ai_summary(target, context)
         print("=== AI 요약 결과 ===")
         print(summary)
+
+        # glossary_terms / flow_explanation 필드 검증
+        result = summary
+        glossary = result.get("glossary_terms") if isinstance(result, dict) else None
+        flow = result.get("flow_explanation") if isinstance(result, dict) else None
+
+        if isinstance(glossary, list):
+            print(f"  glossary_terms: {len(glossary)}개 — {glossary}")
+        else:
+            print(f"  glossary_terms 없음 (LLM 누락 또는 구형 응답)")
+
+        if isinstance(flow, str) and flow:
+            print(f"  flow_explanation: {flow[:80]}...")
+        else:
+            print(f"  flow_explanation 없음 (LLM 누락 또는 구형 응답)")
     else:
         print("[FAIL] 뉴스 수집 실패. API 키나 네트워크를 확인하세요.")
 
