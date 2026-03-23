@@ -282,13 +282,21 @@ main (보호 브랜치)
     ↓
 04번: 코드 검수 (통과/반려)
     ↓
-02번: git add . && git commit -m "[Feat]: 작업 내용"
+02번: git add → python test_run.py 테스트 실행 → 결과 보고
     ↓
-02번: git merge feat/p{N}-기능명 → main
+⛔ 사용자 최종 승인 요청 (이 단계 없이 커밋·push 절대 금지)
+    ↓
+02번: git commit -m "[Feat]: 작업 내용"  ← 승인 후에만 실행
+    ↓
+02번: git push origin feat/p{N}-기능명  ← main 직접 push 금지
+    ↓
+02번: gh pr create --base main --title "[Feat]: 작업 내용" --body "..."
+    ↓
+⛔ 사용자가 GitHub PR 검수 후 직접 merge  ← Claude가 merge 금지
     ↓
 CI/CD: GitHub Actions 자동 실행 (Lambda 배포)
     ↓
-02번: git branch -d feat/p{N}-기능명  # 작업 브랜치 즉시 삭제
+02번: git branch -d feat/p{N}-기능명  # 로컬 작업 브랜치 정리
 ```
 
 ### 세션 종료 정리 (HANDOFF.md 갱신 커밋 직후 필수)
@@ -296,11 +304,13 @@ CI/CD: GitHub Actions 자동 실행 (Lambda 배포)
 ```
 HANDOFF.md 갱신 커밋 완료
     ↓
+02번: git push origin docs/handoff-update  # PR 생성 후 사용자가 merge
+    ↓
 02번: git worktree prune   # 삭제된 워크트리 레퍼런스 정리
     ↓
-02번: claude/* 브랜치 중 main과 동일한 것 일괄 삭제
+02번: claude/* 브랜치 중 origin/main과 동일한 것 일괄 삭제
     for b in $(git branch | grep 'claude/'); do
-      [ $(git log --oneline main..$b | wc -l) -eq 0 ] && git branch -d $b
+      [ $(git log --oneline origin/main..$b | wc -l) -eq 0 ] && git branch -d $b
     done
     ↓
 02번: git branch -a 로 최종 상태 확인
@@ -310,6 +320,9 @@ HANDOFF.md 갱신 커밋 완료
 
 ### 커밋 금지 사항
 
+- **사용자 승인 없이 커밋·push 절대 금지** — 반드시 테스트 결과 보고 후 사용자 확인 대기
+- **main 브랜치 직접 push 금지** — 반드시 feat/fix 브랜치 push 후 PR 생성, 사용자가 merge
+- **PR merge 금지** — merge는 반드시 사용자가 GitHub에서 직접 수행
 - 01번·03번 에이전트 직접 커밋 금지
 - 민감 정보(`.env`, API 키) 포함 커밋 금지
 - 테스트 실패 상태의 코드 커밋 금지
