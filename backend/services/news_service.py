@@ -3,7 +3,7 @@ import re
 import logging
 import requests
 import xml.etree.ElementTree as ET
-from urllib.parse import quote_plus
+from urllib.parse import quote_plus, quote
 from difflib import SequenceMatcher
 from rank_bm25 import BM25Okapi
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -221,7 +221,10 @@ def get_yahoo_rss_news(query: str, symbol=None):
     logger.info("Yahoo RSS 검색 시작: %s (symbol=%s)", query, ticker)
 
     try:
-        resp = requests.get(url, timeout=10)
+        resp = requests.get(
+            url, timeout=10,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
+        )
         resp.raise_for_status()
 
         root = ET.fromstring(resp.content)
@@ -235,7 +238,7 @@ def get_yahoo_rss_news(query: str, symbol=None):
             title = item.findtext("title") or ""
             # RSS 2.0의 <link> 태그는 ET.findtext로 읽히지 않아 .tail로 읽어야 함
             link_el = item.find("link")
-            item_url = (link_el.tail or "").strip() if link_el is not None else ""
+            item_url = (link_el.text or "").strip() if link_el is not None else ""
             description = item.findtext("description") or ""
             pub_date = item.findtext("pubDate") or ""
 
@@ -304,7 +307,7 @@ def get_google_rss_news(query: str):
             title = _html_tag_re.sub("", item.findtext("title") or "")
             # Google RSS <link>는 리다이렉트 URL이지만 그대로 저장
             link_el = item.find("link")
-            item_url = (link_el.tail or "").strip() if link_el is not None else ""
+            item_url = (link_el.text or "").strip() if link_el is not None else ""
             description = _html_tag_re.sub("", item.findtext("description") or "")
             pub_date = item.findtext("pubDate") or ""
 
@@ -353,13 +356,15 @@ def get_gdelt_news(query: str):
     """
     url = (
         f'https://api.gdeltproject.org/api/v2/doc/doc'
-        f'?query="{quote_plus(query)}"&maxrecords=10&format=json&mode=artlist'
+        f'?query={quote(query)}&maxrecords=10&format=json&mode=artlist'
     )
 
     logger.info("GDELT 검색 시작: %s", query)
 
     try:
-        resp = requests.get(url, timeout=10)
+        import time as _time
+        _time.sleep(6)  # GDELT: 5초에 1회 제한 정책 준수
+        resp = requests.get(url, timeout=15)
         resp.raise_for_status()
         data = resp.json()
 
