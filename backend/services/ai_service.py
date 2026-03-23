@@ -111,8 +111,15 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
         "verdict": "호재 또는 악재 또는 중립",
         "reason": "단기 주가 영향 이유 한 문장"
       }},
-      "trend_insight": "주가 추세 데이터 기반 1-2문장 또는 추세 데이터 없음"
+      "trend_insight": "주가 추세 데이터 기반 1-2문장 또는 추세 데이터 없음",
+      "glossary_terms": [
+        {{"term": "용어명", "definition": "한 줄 정의"}}
+      ],
+      "flow_explanation": "원인 → 결과 → 영향 흐름 1-2문장"
     }}
+
+    - glossary_terms: 위 뉴스/요약에서 투자자가 모를 수 있는 금융·경제 용어 2-3개를 추출해 한 줄 정의. 없으면 빈 배열 [] 반환.
+    - flow_explanation: 현재 시장 상황의 인과관계를 '원인 → 결과 → 영향' 흐름으로 1-2문장. 없으면 빈 문자열 "" 반환.
     """
 
     models = MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"])

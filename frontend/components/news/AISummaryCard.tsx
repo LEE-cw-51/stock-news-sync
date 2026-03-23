@@ -1,12 +1,14 @@
 import { Zap, Briefcase, Star } from "lucide-react";
 import type { ReactNode } from "react";
-import type { AISummaryStructured } from "@/lib/types";
+import type { AISummaryStructured, GlossaryTerm } from "@/lib/types";
 
 interface ParsedSummary {
   bullets: string[];
   sentiment: "호재" | "악재" | "중립" | null;
   sentimentDesc: string;
   trendInsight: string;
+  glossaryTerms: GlossaryTerm[];
+  flowExplanation: string;
 }
 
 function parseAISummary(text: string): ParsedSummary {
@@ -47,7 +49,7 @@ function parseAISummary(text: string): ParsedSummary {
     }
   }
 
-  return { bullets, sentiment, sentimentDesc, trendInsight };
+  return { bullets, sentiment, sentimentDesc, trendInsight, glossaryTerms: [], flowExplanation: "" };
 }
 
 function normalizeAISummary(input: string | AISummaryStructured): ParsedSummary {
@@ -60,6 +62,8 @@ function normalizeAISummary(input: string | AISummaryStructured): ParsedSummary 
         : null) as "호재" | "악재" | "중립" | null,
       sentimentDesc: input.market_reaction?.reason ?? "",
       trendInsight: input.trend_insight ?? "",
+      glossaryTerms: input.glossary_terms ?? [],
+      flowExplanation: input.flow_explanation ?? "",
     };
   }
   // 문자열 → 기존 정규식 파서 폴백 (하위 호환)
@@ -156,6 +160,17 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
             ))}
           </ul>
 
+          {parsed.flowExplanation && (
+            <div className="mt-3 pt-3 border-t border-slate-800/50">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
+                🔗 시장 흐름
+              </p>
+              <p className="text-slate-400 text-[11px] leading-relaxed">
+                {parsed.flowExplanation}
+              </p>
+            </div>
+          )}
+
           {parsed.trendInsight && parsed.trendInsight !== "추세 데이터 없음" && (
             <div className="mt-3 pt-3 border-t border-slate-800/50">
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
@@ -164,6 +179,22 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
               <p className="text-slate-400 text-[11px] leading-relaxed">
                 {parsed.trendInsight}
               </p>
+            </div>
+          )}
+
+          {parsed.glossaryTerms.length > 0 && (
+            <div className="mt-3 pt-3 border-t border-slate-800/50">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">
+                📖 용어 설명
+              </p>
+              <dl className="space-y-2">
+                {parsed.glossaryTerms.map((item, idx) => (
+                  <div key={idx}>
+                    <dt className="text-slate-300 text-[11px] font-bold">{item.term}</dt>
+                    <dd className="text-slate-400 text-[11px] leading-relaxed">{item.definition}</dd>
+                  </div>
+                ))}
+              </dl>
             </div>
           )}
 
