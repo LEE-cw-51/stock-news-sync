@@ -28,6 +28,11 @@ export interface NewsItem {
   pubDate?: string;
 }
 
+export interface GlossaryTerm {
+  term: string;
+  definition: string;
+}
+
 export interface AISummaryStructured {
   bullets: string[];
   market_reaction: {
@@ -35,6 +40,8 @@ export interface AISummaryStructured {
     reason: string;
   };
   trend_insight: string;
+  glossary_terms?: GlossaryTerm[];
+  flow_explanation?: string;
 }
 
 export interface FeedData {

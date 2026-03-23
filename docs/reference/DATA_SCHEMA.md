@@ -1,6 +1,6 @@
 # 데이터 스키마 & AI 모델 라우팅
 
-> 최종 업데이트: 2026-03-20
+> 최종 업데이트: 2026-03-23
 
 ---
 
@@ -52,14 +52,15 @@
 | portfolio | Groq GPT-OSS | Gemini Pro | Llama 3.1 |
 | watchlist | Llama 3.1 | Gemini Flash | Groq GPT-OSS |
 
-- **공통 설정**: `MAX_TOKENS=2000`, `TEMPERATURE=0.2`
+- **공통 설정**: `MAX_TOKENS=2500`, `TEMPERATURE=0.2`
 - **쿼터 관리**: `_quota_exceeded_models` — 세션 내 재시도 방지
 
 ---
 
 ## AI 요약 데이터 구조 (`/feed/ai_summaries/`)
 
-> 2026-03-20: 마크다운 문자열 → 구조화 JSON 객체로 전환 (RealFinTutor Phase 1)
+> 2026-03-20: 마크다운 문자열 → 구조화 JSON 객체로 전환
+> 2026-03-23: `glossary_terms` + `flow_explanation` 필드 추가 (금융 학습 콘텐츠)
 
 ### 현재 구조 (JSON 객체)
 
@@ -71,12 +72,20 @@
       "verdict": "호재 | 악재 | 중립",
       "reason": "단기 주가 영향 이유 한 문장"
     },
-    "trend_insight": "추세 설명 1-2문장 또는 '추세 데이터 없음'"
+    "trend_insight": "추세 설명 1-2문장 또는 '추세 데이터 없음'",
+    "glossary_terms": [
+      {"term": "FOMC", "definition": "미국 연방공개시장위원회 — 금리 결정 기구"}
+    ],
+    "flow_explanation": "미국 고용지표 호조 → FOMC 금리 동결 기대 약화 → 채권 수익률 상승 → 성장주 하락 압력"
   },
   "portfolio": { ... },
   "watchlist": { ... }
 }
 ```
+
+- `glossary_terms`: 뉴스 내 금융·경제 용어 2-3개. LLM이 생성 못할 경우 `[]`
+- `flow_explanation`: 현재 시장 인과관계 흐름 1-2문장. 없으면 `""`
+- 두 필드 모두 optional — 구 데이터는 해당 섹션 미표시
 
 ### 하위 호환 폴백
 
