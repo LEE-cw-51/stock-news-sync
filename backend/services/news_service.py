@@ -2,6 +2,8 @@ import os
 import re
 import logging
 import requests
+import xml.etree.ElementTree as ET
+from urllib.parse import quote_plus
 from difflib import SequenceMatcher
 from rank_bm25 import BM25Okapi
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
@@ -198,3 +200,241 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
     except Exception as e:
         logger.warning("Naver 뉴스 검색 실패 (%s): %s", query, e)
         return "", []
+
+
+def get_yahoo_rss_news(query: str, symbol=None):
+    """
+    Yahoo Finance RSS 피드에서 뉴스 본문(Context)과 링크를 가져옵니다.
+
+    파이프라인:
+    Yahoo RSS(symbol or ^GSPC) → XML 파싱 → BM25 재랭킹(top-3)
+    → context/links 생성 → VADER 감성 추가 → dedup → 반환
+
+    실패 시 logger.warning 후 ("", []) 반환.
+    """
+    ticker = symbol if symbol else "^GSPC"
+    url = (
+        f"https://feeds.finance.yahoo.com/rss/2.0/headline"
+        f"?s={ticker}&region=US&lang=en-US"
+    )
+
+    logger.info("Yahoo RSS 검색 시작: %s (symbol=%s)", query, ticker)
+
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+
+        root = ET.fromstring(resp.content)
+        channel = root.find("channel")
+        if channel is None:
+            logger.warning("Yahoo RSS: channel 요소 없음 (symbol=%s)", ticker)
+            return "", []
+
+        results = []
+        for item in channel.findall("item"):
+            title = item.findtext("title") or ""
+            # RSS 2.0의 <link> 태그는 ET.findtext로 읽히지 않아 .tail로 읽어야 함
+            link_el = item.find("link")
+            item_url = (link_el.tail or "").strip() if link_el is not None else ""
+            description = item.findtext("description") or ""
+            pub_date = item.findtext("pubDate") or ""
+
+            results.append({
+                "title": title,
+                "content": description,
+                "url": item_url,
+                "published_date": pub_date,
+            })
+
+        if not results:
+            logger.warning("Yahoo RSS: 결과 없음 (symbol=%s)", ticker)
+            return "", []
+
+        results = _bm25_rerank(query, results)
+
+        context = "\n\n".join([
+            f"[{i+1}. {r['title']}]\n{r['content']}"
+            for i, r in enumerate(results)
+        ])
+
+        links = [
+            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
+            for r in results
+        ]
+
+        links = _add_sentiment(links)
+        links = _deduplicate_links(links)
+
+        return context, links
+
+    except Exception as e:
+        logger.warning("Yahoo RSS 검색 실패 (%s, symbol=%s): %s", query, ticker, e)
+        return "", []
+
+
+def get_google_rss_news(query: str):
+    """
+    Google News RSS에서 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
+
+    파이프라인:
+    Google RSS(hl=ko&gl=KR) → XML 파싱 → HTML 태그 제거 → BM25 재랭킹(top-3)
+    → context/links 생성 → VADER 감성 추가 → dedup → 반환
+
+    실패 시 ("", []) 반환.
+    """
+    url = (
+        f"https://news.google.com/rss/search"
+        f"?q={quote_plus(query)}&hl=ko&gl=KR&ceid=KR:ko"
+    )
+
+    logger.info("Google RSS 검색 시작: %s", query)
+
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+
+        root = ET.fromstring(resp.content)
+        channel = root.find("channel")
+        if channel is None:
+            logger.warning("Google RSS: channel 요소 없음 (query=%s)", query)
+            return "", []
+
+        results = []
+        for item in channel.findall("item"):
+            title = _html_tag_re.sub("", item.findtext("title") or "")
+            # Google RSS <link>는 리다이렉트 URL이지만 그대로 저장
+            link_el = item.find("link")
+            item_url = (link_el.tail or "").strip() if link_el is not None else ""
+            description = _html_tag_re.sub("", item.findtext("description") or "")
+            pub_date = item.findtext("pubDate") or ""
+
+            results.append({
+                "title": title,
+                "content": description,
+                "url": item_url,
+                "published_date": pub_date,
+            })
+
+        if not results:
+            logger.warning("Google RSS: 결과 없음 (query=%s)", query)
+            return "", []
+
+        results = _bm25_rerank(query, results)
+
+        context = "\n\n".join([
+            f"[{i+1}. {r['title']}]\n{r['content']}"
+            for i, r in enumerate(results)
+        ])
+
+        links = [
+            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
+            for r in results
+        ]
+
+        links = _add_sentiment(links)
+        links = _deduplicate_links(links)
+
+        return context, links
+
+    except Exception as e:
+        logger.warning("Google RSS 검색 실패 (%s): %s", query, e)
+        return "", []
+
+
+def get_gdelt_news(query: str):
+    """
+    GDELT v2 Doc API에서 뉴스 본문(Context)과 링크를 가져옵니다.
+
+    파이프라인:
+    GDELT artlist(maxrecords=10) → BM25 재랭킹(top-3)
+    → context/links 생성 → VADER 감성 추가 → dedup → 반환
+
+    실패 시 ("", []) 반환.
+    """
+    url = (
+        f'https://api.gdeltproject.org/api/v2/doc/doc'
+        f'?query="{quote_plus(query)}"&maxrecords=10&format=json&mode=artlist'
+    )
+
+    logger.info("GDELT 검색 시작: %s", query)
+
+    try:
+        resp = requests.get(url, timeout=10)
+        resp.raise_for_status()
+        data = resp.json()
+
+        articles = data.get("articles") or []
+        if not articles:
+            logger.warning("GDELT: 결과 없음 (query=%s)", query)
+            return "", []
+
+        results = []
+        for article in articles:
+            # seendate 형식: "20230101T000000Z" → "2023-01-01"
+            raw_date = article.get("seendate", "")
+            try:
+                date_str = (
+                    f"{raw_date[0:4]}-{raw_date[4:6]}-{raw_date[6:8]}"
+                    if len(raw_date) >= 8
+                    else raw_date
+                )
+            except Exception:
+                date_str = raw_date
+
+            results.append({
+                "title": article.get("title", ""),
+                "content": article.get("title", ""),  # GDELT artlist는 본문 미제공
+                "url": article.get("url", ""),
+                "published_date": date_str,
+            })
+
+        results = _bm25_rerank(query, results)
+
+        context = "\n\n".join([
+            f"[{i+1}. {r['title']}]\n{r['content']}"
+            for i, r in enumerate(results)
+        ])
+
+        links = [
+            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
+            for r in results
+        ]
+
+        links = _add_sentiment(links)
+        links = _deduplicate_links(links)
+
+        return context, links
+
+    except Exception as e:
+        logger.warning("GDELT 검색 실패 (%s): %s", query, e)
+        return "", []
+
+
+def get_foreign_news(query: str, symbol=None):
+    """
+    해외 뉴스 Fallback 체인: Tavily → Yahoo RSS → GDELT
+
+    각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
+    """
+    context, links = get_tavily_news(query)
+    if links:
+        return context, links
+    context, links = get_yahoo_rss_news(query, symbol)
+    if links:
+        return context, links
+    return get_gdelt_news(query)
+
+
+def get_korean_news(query: str):
+    """
+    한국어 뉴스 Fallback 체인: Naver → Google RSS → GDELT
+
+    각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
+    """
+    context, links = get_naver_news(query)
+    if links:
+        return context, links
+    context, links = get_google_rss_news(query)
+    if links:
+        return context, links
+    return get_gdelt_news(query)

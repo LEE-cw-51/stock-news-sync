@@ -23,7 +23,7 @@ from backend.config.tickers import (
 )
 from backend.services.db_service import DBService
 from backend.services.market_service import get_market_indices, get_top_volume_stocks, get_stock_history  # get_stock_history: AI 추세 컨텍스트용
-from backend.services.news_service import get_tavily_news, get_naver_news
+from backend.services.news_service import get_tavily_news, get_naver_news, get_foreign_news, get_korean_news
 from backend.services.ai_service import generate_ai_summary
 
 def _build_trend_context(symbol: str, name: str, records: list) -> str:
@@ -83,7 +83,7 @@ def run_sync_engine_once():
     # 1. 거시경제 뉴스 (영문 — Tavily)
     for keyword in MACRO_KEYWORDS:
         try:  # [P4 Fix] 개별 키워드 뉴스 수집 실패 시 전체 중단 방지 (종목 뉴스와 동일 패턴)
-            context, links = get_tavily_news(keyword)
+            context, links = get_foreign_news(keyword)
             if context:
                 ai_contexts["macro"] += f"\n[Keyword: {keyword}]\n{context}\n"
                 for item in links:
@@ -102,7 +102,7 @@ def run_sync_engine_once():
     # 1-2. 한국 거시경제 뉴스 (한국어 — Naver)
     for keyword in KR_MACRO_KEYWORDS:
         try:
-            context, links = get_naver_news(keyword)
+            context, links = get_korean_news(keyword)
             if context:
                 ai_contexts["macro"] += f"\n[한국 거시: {keyword}]\n{context}\n"
                 for item in links:
@@ -144,9 +144,9 @@ def run_sync_engine_once():
                 # KS 종목은 Naver News API로 한국어 뉴스 수집, 그 외는 Tavily 사용
                 kr_name = info.get("kr_name")
                 if symbol.endswith(".KS") and kr_name:
-                    context, links = get_naver_news(kr_name)
+                    context, links = get_korean_news(kr_name)
                 else:
-                    context, links = get_tavily_news(info['name'])
+                    context, links = get_foreign_news(info['name'], symbol=symbol)
                 if context:
                     ai_contexts[category] += f"\n[{info['name']}]\n{context}\n"
                     for link_data in links:
