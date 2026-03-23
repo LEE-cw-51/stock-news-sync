@@ -70,7 +70,8 @@ stock-news-sync/
 8. **테스트 없이 운영 데이터 구조 변경 금지**: `test_run.py`로 로컬 검증 후 커밋.
 9. **중앙 보고 체계 준수**: 01~03번 및 05번 에이전트는 반드시 04번(Tech Lead PM)을 경유하여 보고한다.
 10. **Git 커밋 규칙 엄수**: 01번·03번 에이전트는 직접 커밋 금지. 02번이 04번 QA 후 커밋 수행.
-    단, 문서 파일(.md)만 수정한 경우 04번(Tech Lead PM)이 직접 커밋 가능.
+    모든 변경(코드·문서 무관)은 브랜치 커밋 → PR 생성 → 사용자 검수·merge 순서로 진행.
+    main 직접 push 및 PR merge는 사용자만 수행. 예외 없음.
     커밋 메시지: `[Feat]` / `[Fix]` / `[Docs]` / `[Style]` / `[Refactor]` / `[Test]` / `[Chore]`
 
 ---
@@ -103,8 +104,9 @@ cd frontend && npm run lint       # ESLint 검사
 cd backend && python test_run.py  # 로컬 테스트
 cd backend && python main.py      # Lambda 핸들러 직접 실행
 
-# 배포 (CI/CD 자동)
-git push origin main
+# 배포 (PR merge 후 CI/CD 자동)
+git push origin feat/브랜치명   # main 직접 push 금지
+# → gh pr create → 사용자 merge → GitHub Actions 자동 실행
 ```
 
 ---
