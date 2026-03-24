@@ -49,6 +49,11 @@ CREATE POLICY "Users can delete own watchlist"
     ON watchlist FOR DELETE
     USING (user_id = current_setting('app.user_id', true));
 
+CREATE POLICY "Users can update own watchlist"
+    ON watchlist FOR UPDATE
+    USING (user_id = current_setting('app.user_id', true))
+    WITH CHECK (user_id = current_setting('app.user_id', true));
+
 -- service_role (Lambda)은 RLS 우회 가능 — 별도 정책 불필요
 -- Lambda는 SUPABASE_SERVICE_ROLE_KEY 사용 → 전체 접근 허용
 
