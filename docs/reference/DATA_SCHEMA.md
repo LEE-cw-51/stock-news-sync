@@ -36,6 +36,17 @@
 - `watchlist`: 사용자별 관심 종목 (RLS: user_id 기반)
 - Connection: Supavisor 포트 6543 (Lambda 연결 풀링, Transaction mode)
 
+### watchlist RLS 정책 목록
+
+| 정책명 | 대상 작업 | 조건 |
+|--------|---------|------|
+| Users can view own watchlist | SELECT | user_id = app.user_id |
+| Users can insert own watchlist | INSERT | user_id = app.user_id |
+| Users can delete own watchlist | DELETE | user_id = app.user_id |
+| Users can update own watchlist | UPDATE | user_id = app.user_id (USING + WITH CHECK) |
+
+> UPDATE 정책은 2026-03-25 /db-audit 감사에서 누락 발견 후 추가. Supabase SQL Editor에서 별도 DDL 실행 필요.
+
 ### 이관 원칙
 
 1. **Firebase RTDB**: 실시간 구독 특화, 장기 유지
