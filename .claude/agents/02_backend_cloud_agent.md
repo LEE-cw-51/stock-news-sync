@@ -254,6 +254,34 @@ AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY
 
 **형식**: `[태그]: 작업 내용 (한글, 명사형 또는 동사형 종결)`
 
+### 브랜치 생성 전 사용자 승인 필수 ⛔
+
+**브랜치 또는 워크트리를 생성하기 전에 반드시 사용자에게 확인을 받아야 한다.**
+
+```
+[브랜치 생성 전 필수 확인 절차]
+1. 작업 내용 요약을 사용자에게 설명
+2. 생성할 브랜치명(예: feat/p4-analytics)과 워크트리명(예: p4-analytics) 제안
+3. 사용자 승인 대기
+4. ⛔ 승인 없이 git checkout -b, git worktree add 실행 절대 금지
+```
+
+**허용되는 브랜치 네이밍 컨벤션**:
+
+| 접두사 | 용도 | 예시 |
+|--------|------|------|
+| `feat/` | 새 기능 개발 | `feat/p4-vercel-analytics` |
+| `fix/` | 버그 수정 | `fix/p4-lambda-timeout` |
+| `hotfix/` | 긴급 수정 | `hotfix/firebase-auth` |
+| `docs/` | 문서 갱신 | `docs/worktree-guide` |
+| `refactor/` | 코드 리팩토링 | `refactor/p4-ai-service` |
+| `chore/` | 빌드/설정 변경 | `chore/update-deps` |
+| `test/` | 테스트 코드 | `test/p4-market-service` |
+| `style/` | 포맷팅/UI 수정 | `style/dashboard-spacing` |
+
+> ⚠️ 위 접두사 외 브랜치명 생성 금지. `validate-branch-name.sh` 훅이 자동 검증함.
+> `claude/` 네임스페이스는 Claude Code 자동 생성 전용이므로 수동 생성 금지.
+
 ### 브랜치 전략
 
 ```

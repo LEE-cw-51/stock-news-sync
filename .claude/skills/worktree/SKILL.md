@@ -30,6 +30,10 @@ allowed-tools: Bash
 **`branch-name` 형식**: `/commit-kr` 스킬이 제안한 브랜치명을 그대로 사용한다.
 예: `feat/p3-watchlist-ui`, `fix/p3-lambda-timeout`, `docs/agent-directory-update`
 
+**⛔ 사전 승인 필수**: `start`를 실행하기 전에 반드시 사용자에게 생성할 브랜치명과 워크트리명을 제안하고 승인을 받아야 한다. 승인 없이 실행 금지.
+
+**허용 브랜치 접두사**: `feat/`, `fix/`, `hotfix/`, `docs/`, `refactor/`, `chore/`, `test/`, `style/`
+
 **실행 순서**:
 
 ```bash
@@ -100,16 +104,23 @@ git worktree list --porcelain
 # 1. 삭제된 워크트리 레퍼런스 정리
 git worktree prune
 
-# 2. claude/ 네임스페이스 브랜치 중 main과 동일한 것 삭제
-for b in $(git branch | grep 'claude/'); do
+# 2. 병합 완료 브랜치 목록 미리보기 (삭제 전 확인)
+echo "=== 병합 완료 브랜치 (삭제 후보) ==="
+git branch --merged main | grep -vE '^\*|\bmain\b'
+
+# 3. claude/ 네임스페이스 브랜치 중 main과 동일한 것 삭제
+for b in $(git branch | grep 'claude/' | tr -d ' '); do
   [ $(git log --oneline main..$b | wc -l) -eq 0 ] && git branch -d $b
 done
 
-# 3. 기타 병합 완료 브랜치 탐지
-git branch --merged main | grep -vE '^\*|main'
+# 4. feat/fix/refactor/docs/hotfix/chore/test/style 브랜치 중 병합 완료된 것 삭제
+for b in $(git branch --merged main | grep -E '^\s+(feat|fix|refactor|docs|hotfix|chore|test|style)/' | tr -d ' '); do
+  git branch -d $b
+done
 ```
 
 `main`, `HEAD`는 절대 삭제하지 않는다.
+병합되지 않은 브랜치(`-d`가 거부하는 경우)는 삭제하지 않으며 목록에 표시한다.
 
 **출력 형식**:
 
