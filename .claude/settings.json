@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/warn-before-commit-push.sh"
+          },
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/validate-branch-name-hook.sh"
+          }
+        ]
+      }
+    ]
+  }
+}
