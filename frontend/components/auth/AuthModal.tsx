@@ -3,12 +3,11 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import {
-  auth,
-  googleProvider,
-  signInWithPopup,
-  createUserWithEmailAndPassword,
-  signInWithEmailAndPassword,
-} from "@/lib/firebase";
+  signInWithGoogle,
+  signInWithEmail,
+  signUpWithEmail,
+} from "@/lib/supabase";
+import type { AuthError } from "@/lib/supabase";
 
 interface AuthModalProps {
   onClose: () => void;
@@ -16,27 +15,30 @@ interface AuthModalProps {
 
 type Tab = "login" | "signup";
 
-function getKoreanError(code: string | undefined, message: string): string {
-  switch (code) {
-    case "auth/email-already-in-use":
-      return "이미 사용 중인 이메일입니다.";
-    case "auth/weak-password":
-      return "비밀번호는 6자 이상이어야 합니다.";
-    case "auth/user-not-found":
-    case "auth/wrong-password":
-    case "auth/invalid-credential":
-      return "이메일 또는 비밀번호가 올바르지 않습니다.";
-    case "auth/invalid-email":
-      return "올바른 이메일 형식이 아닙니다.";
-    case "auth/popup-blocked":
-      return "팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요.";
-    case "auth/popup-closed-by-user":
-      return "";
-    case "auth/unauthorized-domain":
-      return "승인되지 않은 도메인입니다. Firebase Console에서 도메인을 추가해주세요.";
-    default:
-      return message || "오류가 발생했습니다. 다시 시도해주세요.";
+function getKoreanError(error: AuthError): string {
+  const msg = error.message?.toLowerCase() ?? "";
+
+  if (msg.includes("user already registered") || msg.includes("already been registered")) {
+    return "이미 사용 중인 이메일입니다.";
   }
+  if (msg.includes("password should be at least")) {
+    return "비밀번호는 6자 이상이어야 합니다.";
+  }
+  if (
+    msg.includes("invalid login credentials") ||
+    msg.includes("invalid credentials") ||
+    msg.includes("user not found") ||
+    msg.includes("wrong password")
+  ) {
+    return "이메일 또는 비밀번호가 올바르지 않습니다.";
+  }
+  if (msg.includes("invalid email")) {
+    return "올바른 이메일 형식이 아닙니다.";
+  }
+  if (msg.includes("popup")) {
+    return "팝업이 차단되었습니다. 팝업 허용 후 다시 시도하세요.";
+  }
+  return error.message || "오류가 발생했습니다. 다시 시도해주세요.";
 }
 
 export default function AuthModal({ onClose }: AuthModalProps) {
@@ -52,15 +54,14 @@ export default function AuthModal({ onClose }: AuthModalProps) {
     setLoading(true);
     try {
       if (tab === "signup") {
-        await createUserWithEmailAndPassword(auth, email, password);
+        await signUpWithEmail(email, password);
       } else {
-        await signInWithEmailAndPassword(auth, email, password);
+        await signInWithEmail(email, password);
       }
       onClose();
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      const message = (err as { message?: string }).message ?? "";
-      const korean = getKoreanError(code, message);
+      const authErr = err as AuthError;
+      const korean = getKoreanError(authErr);
       if (korean) setError(korean);
       console.error("인증 실패:", err);
     } finally {
@@ -72,15 +73,13 @@ export default function AuthModal({ onClose }: AuthModalProps) {
     setError("");
     setLoading(true);
     try {
-      await signInWithPopup(auth, googleProvider);
-      onClose();
+      await signInWithGoogle();
+      // Google OAuth는 리디렉션 방식이므로 onClose 호출 불필요
     } catch (err: unknown) {
-      const code = (err as { code?: string }).code;
-      const message = (err as { message?: string }).message ?? "";
-      const korean = getKoreanError(code, message);
+      const authErr = err as AuthError;
+      const korean = getKoreanError(authErr);
       if (korean) setError(korean);
       console.error("Google 로그인 실패:", err);
-    } finally {
       setLoading(false);
     }
   };

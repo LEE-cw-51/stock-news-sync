@@ -1,67 +1,37 @@
 import os
-import json
 import logging
 import requests
-import firebase_admin
-from firebase_admin import credentials, db
 
 logger = logging.getLogger(__name__)
 
 class DBService:
     def __init__(self):
-        if not firebase_admin._apps:
-            firebase_json = os.environ.get('FIREBASE_SERVICE_ACCOUNT')
-
-            if firebase_json:
-                logger.info("Loading Firebase creds from Environment Variable")
-                cred = credentials.Certificate(json.loads(firebase_json))
-            else:
-                logger.info("Loading Firebase creds from Local File")
-                current_dir = os.path.dirname(os.path.abspath(__file__))
-                backend_dir = os.path.dirname(current_dir)
-                key_path = os.path.join(backend_dir, "serviceAccount.json")
-
-                if not os.path.exists(key_path):
-                    raise FileNotFoundError(f"키 파일을 찾을 수 없습니다: {key_path}")
-
-                cred = credentials.Certificate(key_path)
-
-            firebase_admin.initialize_app(cred, {
-                'databaseURL': os.environ.get(
-                    'FIREBASE_DATABASE_URL',
-                    'https://stock-news-sync-default-rtdb.firebaseio.com/'
-                )
-            })
-
-        self.rt = db
-
-        # Supabase REST API 설정 (Phase 3)
+        # Supabase REST API 설정
         self.supabase_url = os.environ.get('SUPABASE_URL')
         self.supabase_key = os.environ.get('SUPABASE_SERVICE_ROLE_KEY')
-        self._supabase_headers = {
-            "apikey": self.supabase_key or "",
-            "Authorization": f"Bearer {self.supabase_key or ''}",
-            "Content-Type": "application/json",
-            "Prefer": "resolution=merge-duplicates",  # UPSERT
-        }
 
-    def update_market_indices(self, path, updates):
+    def update_market_indices(self, path: str, updates: dict) -> None:
+        # save_final_feed()가 Step D에서 전체 데이터를 UPSERT하므로 no-op 처리
         if not updates:
-            logger.warning("RTDB skip (빈 updates): /feed/%s", path)
-            return
-        try:
-            self.rt.reference(f"/feed/{path}").update(updates)
-            logger.info("RTDB updated: /feed/%s", path)
-        except Exception as e:
-            logger.error("RTDB Update Error (/feed/%s): %s", path, e)
-            raise
+            logger.warning("update_market_indices skip (빈 updates): %s", path)
+        else:
+            logger.info("update_market_indices deferred to save_final_feed: %s", path)
 
-    def save_final_feed(self, data):
+    def save_final_feed(self, data: dict) -> None:
+        if not self.supabase_url or not self.supabase_key:
+            raise RuntimeError("SUPABASE_URL 또는 SUPABASE_SERVICE_ROLE_KEY 미설정")
+        url = f"{self.supabase_url}/rest/v1/feed"
+        headers = {
+            "apikey": self.supabase_key,
+            "Authorization": f"Bearer {self.supabase_key}",
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates",
+        }
+        payload = {"id": 1, **data}
         try:
-            # RTDB 업데이트 — update()로 기존 market_indices/key_indicators를 보존
-            self.rt.reference("/feed").update(data)
-            logger.info("RTDB updated: /feed")
-
+            resp = requests.post(url, json=payload, headers=headers, timeout=10)
+            resp.raise_for_status()
+            logger.info("feed saved to Supabase")
         except Exception as e:
             logger.error("Save Final Feed Error: %s", e)
             raise

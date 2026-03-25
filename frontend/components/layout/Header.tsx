@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { Globe, Activity } from "lucide-react";
-import { auth, signOut } from "@/lib/firebase";
-import type { User } from "firebase/auth";
+import { signOut } from "@/lib/supabase";
+import type { User } from "@/lib/supabase";
 import MarketIndexCard from "@/components/dashboard/MarketIndexCard";
 import AuthModal from "@/components/auth/AuthModal";
 import type { MarketValue } from "@/lib/types";
@@ -50,15 +50,21 @@ export default function Header({ macroList, indexList, user }: HeaderProps) {
             <div className="ml-auto flex-shrink-0 pl-4">
               {user ? (
                 <button
-                  onClick={() => signOut(auth)}
+                  onClick={() => signOut()}
                   className="flex items-center gap-2 text-[11px] text-slate-400 hover:text-white transition-colors"
                   aria-label="로그아웃"
                 >
-                  {user.photoURL && (
+                  {user.user_metadata?.avatar_url && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={user.photoURL} className="w-6 h-6 rounded-full" alt="프로필 사진" />
+                    <img
+                      src={user.user_metadata.avatar_url as string}
+                      className="w-6 h-6 rounded-full"
+                      alt="프로필 사진"
+                    />
                   )}
-                  <span className="hidden sm:inline">{user.displayName ?? user.email}</span>
+                  <span className="hidden sm:inline">
+                    {(user.user_metadata?.full_name as string | undefined) ?? user.email}
+                  </span>
                   <span className="text-slate-700">|</span>
                   <span>로그아웃</span>
                 </button>

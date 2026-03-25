@@ -40,12 +40,13 @@
 
 | 정책명 | 대상 작업 | 조건 |
 |--------|---------|------|
-| Users can view own watchlist | SELECT | user_id = app.user_id |
-| Users can insert own watchlist | INSERT | user_id = app.user_id |
-| Users can delete own watchlist | DELETE | user_id = app.user_id |
-| Users can update own watchlist | UPDATE | user_id = app.user_id (USING + WITH CHECK) |
+| Users can view own watchlist | SELECT | user_id = auth.uid()::text |
+| Users can insert own watchlist | INSERT | user_id = auth.uid()::text |
+| Users can delete own watchlist | DELETE | user_id = auth.uid()::text |
+| Users can update own watchlist | UPDATE | user_id = auth.uid()::text (USING + WITH CHECK) |
 
-> UPDATE 정책은 2026-03-25 /db-audit 감사에서 누락 발견 후 추가. Supabase SQL Editor에서 별도 DDL 실행 필요.
+> UPDATE 정책은 2026-03-25 /db-audit 감사에서 누락 발견 후 추가.
+> RLS 인증 방식은 2026-03-25 `current_setting('app.user_id', true)` → `auth.uid()` 네이티브 방식으로 교체.
 
 ### 이관 원칙
 

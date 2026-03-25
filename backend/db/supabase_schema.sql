@@ -39,20 +39,20 @@ ALTER TABLE watchlist ENABLE ROW LEVEL SECURITY;
 -- 사용자는 자신의 watchlist만 조회/수정 가능
 CREATE POLICY "Users can view own watchlist"
     ON watchlist FOR SELECT
-    USING (user_id = current_setting('app.user_id', true));
+    USING (user_id = auth.uid()::text);
 
 CREATE POLICY "Users can insert own watchlist"
     ON watchlist FOR INSERT
-    WITH CHECK (user_id = current_setting('app.user_id', true));
+    WITH CHECK (user_id = auth.uid()::text);
 
 CREATE POLICY "Users can delete own watchlist"
     ON watchlist FOR DELETE
-    USING (user_id = current_setting('app.user_id', true));
+    USING (user_id = auth.uid()::text);
 
 CREATE POLICY "Users can update own watchlist"
     ON watchlist FOR UPDATE
-    USING (user_id = current_setting('app.user_id', true))
-    WITH CHECK (user_id = current_setting('app.user_id', true));
+    USING (user_id = auth.uid()::text)
+    WITH CHECK (user_id = auth.uid()::text);
 
 -- service_role (Lambda)은 RLS 우회 가능 — 별도 정책 불필요
 -- Lambda는 SUPABASE_SERVICE_ROLE_KEY 사용 → 전체 접근 허용
