@@ -1,5 +1,4 @@
 yfinance
-firebase-admin
 python-dotenv
 tavily-python
 openai

@@ -1,11 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { db, auth } from "@/lib/firebase";
-import { supabase } from "@/lib/supabase";
-import { ref, onValue } from "firebase/database";
-import { onAuthStateChanged } from "firebase/auth";
-import type { User } from "firebase/auth";
+import { supabase, onAuthStateChange } from "@/lib/supabase";
+import type { User } from "@/lib/supabase";
 import { Activity, Briefcase, Star } from "lucide-react";
 import AdBanner from "@/components/AdBanner";
 import Header from "@/components/layout/Header";
@@ -31,20 +28,43 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    const feedRef = ref(db, "/feed");
-    const unsubscribe = onValue(feedRef, (snapshot) => {
-      if (snapshot.exists()) setData(snapshot.val() as FeedData);
-    });
-    const unsubAuth = onAuthStateChanged(auth, (u) => {
+    // Supabase에서 최초 데이터 로드
+    const loadInitialData = async () => {
+      const { data: rows, error } = await supabase
+        .from("feed")
+        .select("*")
+        .eq("id", 1)
+        .single();
+      if (!error && rows) {
+        setData(rows as FeedData);
+      }
+    };
+    loadInitialData();
+
+    // Supabase Realtime 구독
+    const channel = supabase
+      .channel("feed-changes")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "feed", filter: "id=eq.1" },
+        (payload) => {
+          setData(payload.new as FeedData);
+        }
+      )
+      .subscribe();
+
+    // Auth 구독
+    const unsubAuth = onAuthStateChange((u) => {
       setUser(u);
       if (u) {
-        loadUserWatchlist(u.uid);
+        loadUserWatchlist(u.id);
       } else {
         setUserWatchlist([]);
       }
     });
+
     return () => {
-      unsubscribe();
+      supabase.removeChannel(channel);
       unsubAuth();
     };
   }, [loadUserWatchlist]);
@@ -54,7 +74,7 @@ export default function Dashboard() {
     async (stock: StockData) => {
       if (!user) return;
       const { error } = await supabase.rpc("add_to_watchlist", {
-        p_user_id: user.uid,
+        p_user_id: user.id,
         p_symbol: stock.symbol,
         p_name: stock.name,
         p_sector: stock.sector ?? null,
@@ -63,7 +83,7 @@ export default function Dashboard() {
         console.error("watchlist 추가 오류:", error.message);
         return;
       }
-      await loadUserWatchlist(user.uid);
+      await loadUserWatchlist(user.id);
     },
     [user, loadUserWatchlist]
   );
@@ -73,14 +93,14 @@ export default function Dashboard() {
     async (symbol: string) => {
       if (!user) return;
       const { error } = await supabase.rpc("remove_from_watchlist", {
-        p_user_id: user.uid,
+        p_user_id: user.id,
         p_symbol: symbol,
       });
       if (error) {
         console.error("watchlist 제거 오류:", error.message);
         return;
       }
-      await loadUserWatchlist(user.uid);
+      await loadUserWatchlist(user.id);
     },
     [user, loadUserWatchlist]
   );

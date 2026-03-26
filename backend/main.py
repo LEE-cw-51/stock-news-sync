@@ -69,11 +69,19 @@ def run_sync_engine_once():
             "USD_KRW": "USDKRW=X", "US_10Y": "^TNX", "BTC": "BTC-USD", "Gold": "GC=F"
         }
     }
+    collected_indices = {"market_indices": {"domestic": {}, "global": {}}, "key_indicators": {}}
     for path, items in indices_config.items():
         updates = get_market_indices(items)
         for key in updates:
             updates[key]["updated_at"] = now_str
         db_svc.update_market_indices(path, updates)
+        # Supabase final_data에 포함하기 위해 누적
+        if path == "market_indices/domestic":
+            collected_indices["market_indices"]["domestic"] = updates
+        elif path == "market_indices/global":
+            collected_indices["market_indices"]["global"] = updates
+        elif path == "key_indicators":
+            collected_indices["key_indicators"] = updates
 
     # [B] 뉴스 데이터 수집 및 구조화
     logger.info("[Step B] 뉴스 데이터 수집 시작")
@@ -185,6 +193,8 @@ def run_sync_engine_once():
     logger.info("[Step D] Firebase 저장 시작")
     final_data = {
         "updated_at": now_str,
+        "market_indices": collected_indices["market_indices"],
+        "key_indicators": collected_indices["key_indicators"],
         "ai_summaries": ai_summaries,
         "news_feed": frontend_feed,
         "portfolio_list": list(MY_PORTFOLIO.keys()),
