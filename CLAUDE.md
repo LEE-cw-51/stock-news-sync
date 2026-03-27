@@ -72,7 +72,7 @@ stock-news-sync/
 10. **Git 커밋 규칙 엄수**: 01번·03번 에이전트는 직접 커밋 금지. 02번이 04번 QA 후 커밋 수행.
     모든 변경(코드·문서 무관)은 브랜치 커밋 → PR 생성 → 사용자 검수·merge 순서로 진행.
     main 직접 push 및 PR merge는 사용자만 수행. 예외 없음.
-    커밋 메시지: `[Feat]` / `[Fix]` / `[Docs]` / `[Style]` / `[Refactor]` / `[Test]` / `[Chore]`
+    커밋 메시지: `[Feat]:` / `[Fix]:` / `[Docs]:` / `[Style]:` / `[Refactor]:` / `[Test]:` / `[Chore]:`
 
 ---
 
