@@ -5,7 +5,7 @@ argument-hint: [category: macro|portfolio|watchlist]
 ---
 
 <!--
-  ⚠️ 05번 DevOps 규정 준수:
+  ⚠️ 02번 Backend Cloud Agent 규정 준수:
   이 스킬은 로컬 test_run.py 실행 전용입니다.
   Lambda 배포(aws lambda update-function-code)는 절대 실행하지 않습니다.
   배포는 반드시 GitHub Actions (git push origin main) 경유만 허용됩니다.

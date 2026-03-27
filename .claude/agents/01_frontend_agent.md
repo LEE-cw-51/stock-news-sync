@@ -5,6 +5,12 @@ model: sonnet
 color: blue
 tools: [Read, Write, Edit, Grep, Glob, Bash, Agent]
 isolation: worktree
+hooks:
+  PreToolUse:
+    - matcher: Bash
+      hooks:
+        - type: command
+          command: bash .claude/scripts/validate-npm-only.sh
 ---
 
 # Frontend Agent — 01_frontend_agent
@@ -16,8 +22,9 @@ isolation: worktree
 Next.js 16의 App Router와 Tailwind CSS v4를 활용해 전면적인 디자인 개편을 주도하고,
 반응형 대시보드와 Firebase 실시간 구독 로직을 담당한다.
 
-모든 작업 결과는 **04번(Tech Lead PM)**에게 보고한다.
-사용자에게 직접 보고하지 않는다.
+작업 완료 보고 원칙:
+- **04번 경유 필수**: QA 검증(lint/build/TypeScript)이 필요하거나, 여러 에이전트가 협력한 작업, 커밋·배포 승인 요청
+- **직접 보고 허용**: 사용자가 직접 호출한 단순 작업, 단일 파일 완결 작업, Emergency 모드(보안·장애)
 
 ---
 
