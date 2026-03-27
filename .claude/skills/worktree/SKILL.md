@@ -1,6 +1,6 @@
 ---
 name: worktree
-description: 02번 Backend Cloud Agent의 워크트리 및 브랜치 생명주기를 관리합니다. 01번/03번 작업용 브랜치+워크트리 생성(start), 활성 워크트리 목록 조회(list), 병합 완료 브랜치 정리(clean)를 수행합니다.
+description: 02번 Backend Cloud Agent의 워크트리 및 브랜치 생명주기를 관리합니다. 기본 작업 흐름은 workspace 단일 워크트리에서 브랜치만 생성·병합하며, 병렬 작업이 필요할 때만 start로 추가 워크트리를 생성합니다. 활성 워크트리 목록 조회(list), 병합 완료 브랜치 정리(clean)를 수행합니다.
 argument-hint: [start <branch-name> | list | clean]
 allowed-tools: Bash
 ---
@@ -17,15 +17,38 @@ allowed-tools: Bash
 이 스킬은 **02번(Backend Cloud Agent)만** 실행한다.
 01번·03번·04번·05번 에이전트는 이 스킬을 직접 실행하지 않는다.
 
-실행 전 현재 위치가 main 브랜치의 저장소 루트인지 확인한다:
-- `git branch --show-current` — `main`이어야 한다
-- `git status --short` — 미커밋 변경이 없어야 한다
+**기본 작업 위치**: `.claude/worktrees/workspace` (`claude/workspace` 브랜치)
+- 일반 작업은 workspace 안에서 `git checkout -b feat/xxx` 로 브랜치만 생성한다
+- `start` 서브커맨드(추가 워크트리 생성)는 저장소 루트에서 실행:
+  - `git branch --show-current` — `main` 또는 `claude/workspace`
+  - `git status --short` — 미커밋 변경이 없어야 한다
+- workspace 브랜치 동기화: `git fetch origin main && git merge origin/main --ff-only`
+
+---
+
+### 기본 작업 흐름 (단일 workspace)
+
+**평소 작업은 워크트리 생성 없이 workspace에서 브랜치만 만든다.**
+
+```bash
+# workspace 워크트리 안에서
+git fetch origin main && git merge origin/main --ff-only  # main 최신화
+git checkout -b feat/xxx                                  # 브랜치 생성
+# 작업
+git push origin feat/xxx                                  # push
+gh pr create ...                                          # PR 생성
+# 사용자 merge 후
+git checkout claude/workspace && git merge origin/main --ff-only
+git branch -d feat/xxx
+```
+
+`/worktree start`는 **두 에이전트가 동시에 다른 기능을 작업해야 할 때만** 사용한다.
 
 ---
 
 ### 서브커맨드: `start <branch-name>`
 
-**목적**: 01번 또는 03번 에이전트가 격리 환경에서 작업할 브랜치와 워크트리를 함께 생성한다.
+**목적**: 병렬 작업이 필요한 경우에만 — 추가 격리 워크트리와 브랜치를 함께 생성한다.
 
 **`branch-name` 형식**: `/commit-kr` 스킬이 제안한 브랜치명을 그대로 사용한다.
 예: `feat/p3-watchlist-ui`, `fix/p3-lambda-timeout`, `docs/agent-directory-update`
@@ -143,11 +166,18 @@ done
 ### 사용 예시 (02번 작업 흐름)
 
 ```
+# [기본] workspace 단일 브랜치 방식
 # 1. /commit-kr 로 브랜치명 제안 수령
-# 2. /worktree start feat/p3-watchlist-ui
-# 3. 01번 에이전트에게 워크트리 경로 전달 후 작업 지시
+# 2. workspace 안에서 git checkout -b feat/xxx
+# 3. 01번/03번 에이전트에게 workspace 경로 + 브랜치명 전달
 # 4. 작업 완료 → /qa → /commit-kr → 02번 커밋 → main 병합
-# 5. /worktree clean  (세션 종료 전 정리)
+# 5. git checkout claude/workspace && git branch -d feat/xxx
+
+# [병렬 작업 필요 시만] 추가 워크트리 방식
+# 1. /worktree start feat/p4-feature-A  → 01번이 별도 디렉터리에서 작업
+# 2. /worktree start fix/p4-bug-B       → 03번이 별도 디렉터리에서 작업
+# 3. 각각 완료 → PR 생성 → 사용자 merge
+# 4. /worktree clean
 ```
 
 ---
@@ -158,7 +188,9 @@ done
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 [worktree] 사용법
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-/worktree start <branch-name>   — 브랜치 + 워크트리 생성 (02번 전용)
+기본 작업: workspace에서 git checkout -b 로 브랜치만 생성
+
+/worktree start <branch-name>   — 병렬 작업 필요 시만: 추가 워크트리 생성
 /worktree list                  — 활성 워크트리 현황 조회
 /worktree clean                 — 병합 완료 브랜치/워크트리 정리
 

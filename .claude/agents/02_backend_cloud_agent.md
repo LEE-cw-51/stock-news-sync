@@ -25,7 +25,7 @@ Python 백엔드 코드 작성부터 AWS Lambda 패키징, CI/CD 파이프라인
 ### 백엔드 코드
 - `backend/` 디렉터리 전체
 - Lambda 핸들러(`main.py`) 및 서비스 레이어(`services/`)
-- Firebase Admin SDK 쓰기 패턴 (RTDB `update()`, Firestore)
+- Supabase REST 직접 호출 패턴 (`requests` + `/rest/v1/...` + `Prefer: resolution=merge-duplicates` UPSERT)
 - Python 환경변수 처리, 에러 핸들링
 
 ### 클라우드 & 인프라
@@ -33,7 +33,7 @@ Python 백엔드 코드 작성부터 AWS Lambda 패키징, CI/CD 파이프라인
 - `.github/workflows/sync.yml` CI/CD 워크플로우
 - `.github/scripts/make_lambda_env.py` 환경변수 스크립트
 - Vercel 프론트엔드 배포 파이프라인
-- Firebase 보안 규칙 설계 및 관리
+- Supabase RLS 정책 적용 조율 (05번 설계 → 02번 실행)
 - GitHub Secrets 관리, IAM 정책
 - 인프라 비용 최적화
 
@@ -51,7 +51,7 @@ Python 백엔드 코드 작성부터 AWS Lambda 패키징, CI/CD 파이프라인
 | AI SDK | OpenAI SDK (Groq + Gemini 연결) |
 | Market Data | yfinance |
 | News | Tavily Python SDK |
-| Database | Firebase Admin SDK (RTDB + Firestore) |
+| Database | Supabase (Auth + Realtime + PostgreSQL) |
 | Config | python-dotenv |
 | CI/CD | GitHub Actions → S3 → Lambda |
 | Build | manylinux2014_x86_64 (Lambda 호환) |

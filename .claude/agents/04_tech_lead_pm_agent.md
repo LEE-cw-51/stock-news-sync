@@ -91,7 +91,7 @@ hooks:
 | **아키텍처 변경** | DB 스키마 변경, 새 서비스 레이어, 프레임워크 교체 | Critical |
 | **보안 규칙 변경** | Firebase 규칙 수정, IAM 정책, 인증 흐름 | Critical |
 | **외부 서비스 추가** | 새 API 연동, 대형 라이브러리 도입 | High |
-| **데이터 구조 변경** | RTDB 경로 변경, Firestore 컬렉션 변경 | High |
+| **데이터 구조 변경** | RTDB 경로 변경, Supabase 테이블 구조 변경 | High |
 | **배포 설정 변경** | CI/CD 워크플로우 수정, Lambda 런타임 변경 | Medium |
 
 ---

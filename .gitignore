@@ -61,3 +61,6 @@ backend/.env
 **/*.json
 !.claude/settings.json
 !.claude/settings.local.json
+
+# --- Supabase --- 
+SupabaseGoogleOAuth.json

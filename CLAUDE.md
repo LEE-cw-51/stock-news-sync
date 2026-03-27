@@ -10,7 +10,7 @@
 **stock-news-sync**는 한국어/영어 AI 투자 브리핑 플랫폼입니다.
 - 주식 시장 데이터(yfinance) + 뉴스(Tavily API) 수집
 - Groq / Google Gemini LLM으로 카테고리별 AI 요약 생성
-- Firebase Realtime Database 저장 → Next.js 대시보드 실시간 표시
+- Supabase Realtime DB 저장 → Next.js 대시보드 실시간 표시
 - AWS Lambda 자동 실행 (GitHub Actions CI/CD)
 
 ---
@@ -20,8 +20,8 @@
 | 영역 | 주요 기술 |
 |------|---------|
 | Frontend | Next.js 16.1.5 (App Router), React 19, TypeScript 5, Tailwind CSS v4 |
-| Auth / RT DB | Firebase Auth (Google Sign-In) + Firebase Realtime Database |
-| Chart / History | lightweight-charts + Supabase PostgreSQL (stock_history) |
+| Auth / RT DB | Supabase Auth (Google OAuth + Email/Password) + Supabase Realtime |
+| Chart / History | TradingView Widget + Supabase PostgreSQL (stock_history) |
 | Backend | Python 3.11, AWS Lambda (ap-northeast-2) |
 | AI/LLM | Groq + Google Gemini (OpenAI SDK, base_url 변경) |
 | Data | yfinance (시장 데이터), Tavily API (뉴스) |
@@ -51,8 +51,8 @@ stock-news-sync/
 
 ## 환경 변수 (키 목록)
 
-- **backend/.env**: `GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-- **frontend/.env.local**: `NEXT_PUBLIC_FIREBASE_*` (7개), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **backend/.env**: `GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- **frontend/.env.local**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 > 상세 값 / GitHub Secrets 목록: `docs/reference/ENV_VARS.md`
 
@@ -126,8 +126,10 @@ git push origin feat/브랜치명   # main 직접 push 금지
 **02번(Backend) 복잡 작업 활용 예시:**
 - 수정 전 코드 의존성 파악 → `Explore` 먼저 실행 후 직접 수정
 
-**01번/03번(워크트리 격리 환경):**
-- 새 기능 구현 전 기존 패턴 탐색 → 자신의 워크트리 내에서 `Explore` 사용
+**01번/03번(workspace 환경):**
+- 새 기능 구현 전 기존 패턴 탐색 → `Explore` 서브에이전트 사용
+- 기본 작업 경로: `.claude/worktrees/workspace` (단일 영구 workspace)
+- 병렬 작업이 필요한 경우에만 `/worktree start`로 추가 워크트리 생성
 
 > 내장 에이전트는 모든 에이전트(01~05번)의 `Agent` 도구를 통해 호출 가능.
 
