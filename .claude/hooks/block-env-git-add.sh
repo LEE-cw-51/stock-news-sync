@@ -2,7 +2,7 @@
 # CLAUDE.md 수칙 2번: .env, serviceAccount.json, .env.local 커밋 금지
 # 또한 .claude/worktrees/ 디렉터리 커밋 금지 (CLAUDE.md 금지사항)
 
-COMMAND=$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('command',''))" 2>/dev/null || echo "")
+COMMAND=$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('command',''))" 2>/dev/null || echo "")
 
 # .env 관련 파일 git add 차단
 if echo "$COMMAND" | grep -qE "git (add|stage).*(\.env|serviceAccount\.json|\.env\.local|lambda_env\.json)"; then

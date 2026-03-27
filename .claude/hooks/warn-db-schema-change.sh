@@ -2,7 +2,7 @@
 # PostToolUse Hook: DB 관련 파일 수정 감지 시 05번 검토 체크리스트 경고
 # 차단하지 않고 경고만 출력 (exit 0)
 
-FILE=$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('file_path',''))" 2>/dev/null || echo "")
+FILE=$(cat | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('tool_input',{}).get('file_path',''))" 2>/dev/null || echo "")
 
 # 감사 대상 파일 목록
 DB_FILES=(
