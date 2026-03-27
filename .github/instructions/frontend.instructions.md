@@ -1,5 +1,7 @@
 ---
-applyTo: "frontend/**/*.ts,frontend/**/*.tsx"
+applyTo:
+  - "frontend/**/*.ts"
+  - "frontend/**/*.tsx"
 ---
 
 # Frontend Instructions — Next.js / TypeScript / Tailwind

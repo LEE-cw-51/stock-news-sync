@@ -4,7 +4,7 @@
 - Completed:
   1. GitHub Copilot 경로별 커스텀 지침 파일 3개 생성 및 커밋 (PR #14)
      - .github/copilot-instructions.md (전체 레포 공통 — 한국어·커밋 포맷·보안·Lambda 제약)
-     - .github/instructions/frontend.instructions.md (applyTo: frontend/**/*.ts,tsx)
+     - .github/instructions/frontend.instructions.md (applyTo: ["frontend/**/*.ts", "frontend/**/*.tsx"])
      - .github/instructions/backend.instructions.md (applyTo: backend/**/*.py)
      - Context7 공식 문서 기반 문법 무결성 검증 / QA 전체 통과
   2. 활성 브랜치 통일
