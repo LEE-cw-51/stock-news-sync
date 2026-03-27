@@ -91,7 +91,7 @@ def lambda_handler(event, context):
         return {'statusCode': 200, 'body': '데이터 동기화 완료'}
     except Exception as e:
         logger.error("실행 실패: %s", e)
-        raise e
+        raise
 ```
 
 - `lambda_handler` MUST have exactly this signature: `(event, context)`.
@@ -119,13 +119,13 @@ if not api_key:
 - After adding to `requirements.txt`, verify size locally:
   `pip install -t /tmp/test -r requirements.txt && du -sh /tmp/test`
 
-## Firebase RTDB Key Safety
+## Ticker Key Normalization
 
-When writing keys derived from ticker symbols (e.g., `BTC-USD`, `^GSPC`):
+When using ticker symbols (e.g., `BTC-USD`, `^GSPC`) as dictionary keys or JSON field names:
 
 ```python
 import re
 safe_key = re.sub(r'[.$#\[\]/]', '_', symbol)  # BTC-USD → BTC_USD
 ```
 
-This prevents KeyError and silent data corruption in RTDB paths under `/feed/`.
+This prevents KeyError and silent data corruption when ticker symbols are used as keys in dicts or Supabase JSON payloads.
