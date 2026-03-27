@@ -29,7 +29,8 @@ echo "   파일: $FILE" >&2
 echo "" >&2
 echo "   체크리스트:" >&2
 echo "   [ ] 05번 DB Management Agent 검토 완료?" >&2
-echo "   [ ] Firebase 경로 변경 시 frontend/lib/types.ts 동기화?" >&2
+echo "   [ ] Supabase 테이블/컬럼 변경 시 supabase_schema.sql 동기화?" >&2
+echo "   [ ] RLS 정책 영향 범위 확인 (watchlist, stock_history)?" >&2
 echo "   [ ] Supabase DDL 변경 시 04번 승인 후 02번이 실행?" >&2
 echo "   [ ] docs/reference/DATA_SCHEMA.md 업데이트 예정?" >&2
 echo "" >&2
