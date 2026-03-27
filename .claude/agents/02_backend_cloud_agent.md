@@ -25,7 +25,7 @@ Python 백엔드 코드 작성부터 AWS Lambda 패키징, CI/CD 파이프라인
 ### 백엔드 코드
 - `backend/` 디렉터리 전체
 - Lambda 핸들러(`main.py`) 및 서비스 레이어(`services/`)
-- Supabase REST/Realtime 쓰기 패턴 (`upsert()`, `insert()`)
+- Supabase REST 직접 호출 패턴 (`requests` + `/rest/v1/...` + `Prefer: resolution=merge-duplicates` UPSERT)
 - Python 환경변수 처리, 에러 핸들링
 
 ### 클라우드 & 인프라
