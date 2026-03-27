@@ -21,7 +21,7 @@
 - Blocker/Issue:
   - Tavily API 한도 초과 — test_run.py AI 단계 미검증
   - kind-spence 워크트리 디렉터리 잔존 (세션 종료 후 정리 필요)
-    명령어: git worktree remove --force .claude/worktrees/kind-spence && git branch -d claude/kind-spence
+    명령어: git worktree remove --force .claude/worktrees/kind-spence && git branch -D claude/kind-spence
 - Next Action:
   1. Tavily API 키 교체 또는 한도 복구 → test_run.py 재실행 → glossary/flow 필드 검증
   2. Phase 4 착수 (Vercel Analytics + Sentry 도입)

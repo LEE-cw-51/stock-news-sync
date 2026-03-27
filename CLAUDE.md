@@ -10,7 +10,7 @@
 **stock-news-sync**는 한국어/영어 AI 투자 브리핑 플랫폼입니다.
 - 주식 시장 데이터(yfinance) + 뉴스(Tavily API) 수집
 - Groq / Google Gemini LLM으로 카테고리별 AI 요약 생성
-- Firebase Realtime Database 저장 → Next.js 대시보드 실시간 표시
+- Supabase Realtime DB 저장 → Next.js 대시보드 실시간 표시
 - AWS Lambda 자동 실행 (GitHub Actions CI/CD)
 
 ---
@@ -51,8 +51,8 @@ stock-news-sync/
 
 ## 환경 변수 (키 목록)
 
-- **backend/.env**: `GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `FIREBASE_SERVICE_ACCOUNT`, `FIREBASE_DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-- **frontend/.env.local**: `NEXT_PUBLIC_FIREBASE_*` (7개), `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- **backend/.env**: `GROQ_API_KEY`, `GEMINI_API_KEY`, `TAVILY_API_KEY`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
+- **frontend/.env.local**: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 
 > 상세 값 / GitHub Secrets 목록: `docs/reference/ENV_VARS.md`
 

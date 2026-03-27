@@ -17,9 +17,12 @@ allowed-tools: Bash
 이 스킬은 **02번(Backend Cloud Agent)만** 실행한다.
 01번·03번·04번·05번 에이전트는 이 스킬을 직접 실행하지 않는다.
 
-실행 전 현재 위치가 main 브랜치의 저장소 루트인지 확인한다:
-- `git branch --show-current` — `main`이어야 한다
-- `git status --short` — 미커밋 변경이 없어야 한다
+**기본 작업 위치**: `.claude/worktrees/workspace` (`claude/workspace` 브랜치)
+- 일반 작업은 workspace 안에서 `git checkout -b feat/xxx` 로 브랜치만 생성한다
+- `start` 서브커맨드(추가 워크트리 생성)는 저장소 루트에서 실행:
+  - `git branch --show-current` — `main` 또는 `claude/workspace`
+  - `git status --short` — 미커밋 변경이 없어야 한다
+- workspace 브랜치 동기화: `git fetch origin main && git merge origin/main --ff-only`
 
 ---
 

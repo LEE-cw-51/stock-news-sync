@@ -13,15 +13,13 @@
       {
         "matcher": "Write",
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/block-hardcoded-secrets.sh" },
-          { "type": "command", "command": "bash .claude/hooks/block-firebase-set.sh" }
+          { "type": "command", "command": "bash .claude/hooks/block-hardcoded-secrets.sh" }
         ]
       },
       {
         "matcher": "Edit",
         "hooks": [
-          { "type": "command", "command": "bash .claude/hooks/block-hardcoded-secrets.sh" },
-          { "type": "command", "command": "bash .claude/hooks/block-firebase-set.sh" }
+          { "type": "command", "command": "bash .claude/hooks/block-hardcoded-secrets.sh" }
         ]
       }
     ],
