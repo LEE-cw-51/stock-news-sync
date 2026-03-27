@@ -26,6 +26,7 @@ export interface NewsItem {
   link: string;
   name: string;
   pubDate?: string;
+  symbol?: string;
 }
 
 export interface GlossaryTerm {
@@ -42,6 +43,9 @@ export interface AISummaryStructured {
   trend_insight: string;
   glossary_terms?: GlossaryTerm[];
   flow_explanation?: string;
+  key_event?: string;
+  expected_impact?: string;
+  reference_indicators?: string[];
 }
 
 export interface FeedData {

@@ -15,19 +15,28 @@ function formatDate(pubDate?: string): string {
 
 interface NewsCardProps {
   news: NewsItem;
+  onNewsClick?: (symbol: string) => void;
 }
 
-export default function NewsCard({ news }: NewsCardProps) {
+export default function NewsCard({ news, onNewsClick }: NewsCardProps) {
   const dateStr = formatDate(news.pubDate);
 
   return (
-    <div className="group bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
+    <div
+      className="group bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all cursor-pointer"
+      onClick={() => news.symbol && onNewsClick?.(news.symbol)}
+    >
       <div className="flex justify-between items-start">
         <div className="flex-1 pr-4">
           <div className="flex items-center gap-2 mb-2">
             <span className="px-2 py-0.5 bg-slate-800 rounded text-[9px] text-slate-500 font-black uppercase tracking-widest">
               {news.name}
             </span>
+            {news.symbol && (
+              <span className="px-1.5 py-0.5 bg-blue-900/40 rounded text-[9px] text-blue-400 font-mono">
+                {news.symbol}
+              </span>
+            )}
             {dateStr && (
               <span className="text-[9px] text-slate-600">{dateStr}</span>
             )}
