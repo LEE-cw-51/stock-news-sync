@@ -124,7 +124,7 @@ docs/reference/
 | 테이블 | RLS | 접근 주체 | 비고 |
 |-------|-----|---------|------|
 | `stock_history` | ❌ 미적용 | 누구나 읽기 가능 | **보안 리스크 — 감사 필요** |
-| `watchlist` | ✅ 적용 | 사용자 본인만 | user_id = Firebase Auth uid |
+| `watchlist` | ✅ 적용 | 사용자 본인만 | user_id = auth.uid() |
 
 ### 인덱스 현황
 

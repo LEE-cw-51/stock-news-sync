@@ -4,14 +4,45 @@
       {
         "matcher": "Bash",
         "hooks": [
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/warn-before-commit-push.sh"
-          },
-          {
-            "type": "command",
-            "command": "bash .claude/hooks/validate-branch-name-hook.sh"
-          }
+          { "type": "command", "command": "bash .claude/hooks/warn-before-commit-push.sh" },
+          { "type": "command", "command": "bash .claude/hooks/validate-branch-name-hook.sh" },
+          { "type": "command", "command": "bash .claude/hooks/block-env-git-add.sh" },
+          { "type": "command", "command": "bash .claude/hooks/block-direct-lambda.sh" }
+        ]
+      },
+      {
+        "matcher": "Write",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/block-hardcoded-secrets.sh" },
+          { "type": "command", "command": "bash .claude/hooks/block-firebase-set.sh" }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/block-hardcoded-secrets.sh" },
+          { "type": "command", "command": "bash .claude/hooks/block-firebase-set.sh" }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Write",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/warn-db-schema-change.sh" }
+        ]
+      },
+      {
+        "matcher": "Edit",
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/warn-db-schema-change.sh" }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          { "type": "command", "command": "bash .claude/hooks/warn-uncommitted.sh" }
         ]
       }
     ]

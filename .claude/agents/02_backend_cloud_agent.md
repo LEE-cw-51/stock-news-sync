@@ -51,7 +51,7 @@ Python 백엔드 코드 작성부터 AWS Lambda 패키징, CI/CD 파이프라인
 | AI SDK | OpenAI SDK (Groq + Gemini 연결) |
 | Market Data | yfinance |
 | News | Tavily Python SDK |
-| Database | Firebase Admin SDK (RTDB + Firestore) |
+| Database | Firebase Admin SDK (RTDB) + Supabase PostgreSQL |
 | Config | python-dotenv |
 | CI/CD | GitHub Actions → S3 → Lambda |
 | Build | manylinux2014_x86_64 (Lambda 호환) |
