@@ -1,6 +1,7 @@
 # 프로젝트 진행 로그
 
 | 날짜 | 작업 내용 | 결과 | 다음 할 일 |
+| 2026-03-27 | PR #12 Copilot 리뷰 반영 + 워크트리 운영 방식 확정 | ✅ Copilot 8개 코멘트 전부 반영 (warn-db-schema-change Supabase화·block-direct-lambda 메시지 수정·CLAUDE.md Firebase 잔여 참조 제거·02번 에이전트 Supabase REST 패턴 반영 등) / PR #12 merge 완료 / 단일 workspace 워크트리 운영 방식 확정 (기본=브랜치만, 병렬 시에만 start) / 로컬 main pull 완료 | Tavily API 키 교체 후 test_run.py 재실행 / Phase 4 착수 (Vercel Analytics + Sentry) |
 | 2026-03-27 | workspace 전환·CI 핫픽스·에이전트 보고 체계·문서 정비 | ✅ [Fix] PR #11: sync.yml NEXT_PUBLIC_SUPABASE_URL placeholder → https://placeholder.supabase.co (CI 빌드 오류 수정) / [Chore] PR #10: 01~05번 에이전트 보고 체계 유연성 부여 / [Chore] 단일 workspace 워크트리 운영 방식으로 전환 (.claude/worktrees/workspace) / CLAUDE.md 기술 스택 Supabase 반영 / worktree SKILL.md 기본=브랜치 방식으로 업데이트 / .claude/settings.json 훅 추가 / .gitignore SupabaseGoogleOAuth.json | Tavily API 키 교체 후 test_run.py 재실행 / Phase 4 착수 (Vercel Analytics + Sentry) |
 | 2026-03-27 | Firebase → Supabase 완전 이관 | ✅ [Feat] Firebase Auth → Supabase Auth (Google OAuth + Email/Password) / Firebase RTDB → Supabase Realtime (feed 테이블 단일 행 UPSERT) / firebase-admin Python·firebase npm 패키지 제거 / watchlist RLS app.user_id → auth.uid() 네이티브 교체 / sync.yml 환경변수 정리 / PR #9 merge 완료 | Tavily API 키 교체 후 test_run.py 재실행 → glossary/flow 검증 / Vercel Analytics + Sentry 도입 |
 | 2026-03-25 | watchlist RLS UPDATE 정책 누락 추가 | ✅ [Fix] supabase_schema.sql: watchlist UPDATE 정책 추가 (USING + WITH CHECK) / DATA_SCHEMA.md RLS 정책 목록 반영 / PR #7 merge / Supabase SQL Editor DDL 직접 실행 완료 | Tavily API 한도 복구 후 test_run.py 재실행 → glossary/flow 필드 검증 / Phase 4 성능 최적화 착수 |

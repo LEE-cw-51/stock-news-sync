@@ -2,26 +2,24 @@
 - Date: 2026-03-27
 - Last Active Agent: 04 Tech Lead PM (조율·감독)
 - Completed:
-  1. Firebase → Supabase 완전 이관 (PR #9 merge 완료)
-     - Firebase Auth → Supabase Auth (Google OAuth + Email/Password)
-     - Firebase RTDB → Supabase Realtime (feed 테이블 단일 행 UPSERT)
-     - firebase-admin Python·firebase npm 패키지 제거
-     - watchlist RLS app.user_id → auth.uid() 네이티브 교체
-     - sync.yml Firebase 환경변수 → Supabase 환경변수 정리
-  2. 에이전트 보고 체계 유연성 부여 (PR #10 merge 완료)
-     - 01~05번 agent: 04번 경유 필수 / 직접 보고 허용 조건 구분
-  3. CI 빌드 오류 수정 (PR #11 merge 완료)
-     - sync.yml NEXT_PUBLIC_SUPABASE_URL: placeholder → https://placeholder.supabase.co
-  4. workspace 워크트리 전환 + 문서 정리
-     - 단일 영구 workspace(.claude/worktrees/workspace) 운영 방식으로 전환
-     - CLAUDE.md 기술 스택·에이전트 가이드 갱신 (Supabase Auth/Realtime 반영)
-     - worktree SKILL.md: 기본=브랜치만 생성, 병렬 작업 시만 start 사용
-     - .claude/settings.json: PreToolUse·PostToolUse·Stop 훅 추가
-     - .gitignore: SupabaseGoogleOAuth.json 추가
+  1. PR #12 Copilot 리뷰 8개 코멘트 전부 반영 및 merge 완료
+     - warn-db-schema-change.sh: Firebase → Supabase 체크리스트로 교체
+     - block-direct-lambda.sh: 배포 메시지 현행 흐름(브랜치→PR→사용자merge) 반영
+     - block-firebase-set.sh: settings.json에서 참조 제거 (파일 잔존)
+     - CLAUDE.md: Firebase 잔여 참조 제거, 행동 수칙 4번 Supabase 표현으로 교체
+     - 02_backend_cloud_agent.md: Supabase REST 직접 호출 패턴 반영 (requests + /rest/v1/)
+     - worktree SKILL.md: 전제조건·예시 workspace 기반으로 일치
+     - HANDOFF.md: git branch -D 적용
+  2. 워크트리 운영 방식 확정
+     - 기본: workspace 단일 워크트리에서 브랜치만 생성·병합
+     - 예외: 병렬 작업 필요 시에만 /worktree start 로 추가 워크트리 생성
+     - 세션 시작 방법: 프로젝트=stock-news-sync, 워크트리=.claude/worktrees/workspace 선택
+  3. 로컬 main git pull 완료 (origin/main 2031fa6 동기화)
+
 - Blocker/Issue:
-  - Tavily API 한도 초과 — test_run.py AI 단계 미검증
-  - kind-spence 워크트리 디렉터리 잔존 (세션 종료 후 정리 필요)
-    명령어: git worktree remove --force .claude/worktrees/kind-spence && git branch -D claude/kind-spence
+  - Tavily API 한도 초과 — test_run.py AI 단계 미검증 (이월)
+  - block-firebase-set.sh 파일 잔존 (settings.json 미참조 상태, 제거 여부 결정 필요)
+
 - Next Action:
   1. Tavily API 키 교체 또는 한도 복구 → test_run.py 재실행 → glossary/flow 필드 검증
   2. Phase 4 착수 (Vercel Analytics + Sentry 도입)
