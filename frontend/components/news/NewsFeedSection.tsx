@@ -152,9 +152,9 @@ export default function NewsFeedSection({
           Latest Headlines
         </h3>
         {sortedNewsList.length > 0 ? (
-          sortedNewsList.map((news, idx) => (
+          sortedNewsList.map((news) => (
             <NewsCard
-              key={`${news.link}-${idx}`}
+              key={news.link}
               news={news}
               onNewsClick={handleNewsClick}
             />
