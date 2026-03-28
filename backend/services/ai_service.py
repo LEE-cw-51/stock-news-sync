@@ -68,8 +68,10 @@ def _parse_json_response(raw: str) -> dict | None:
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
     try:
         parsed = json.loads(cleaned)
-        # 필수 키 검증
-        if isinstance(parsed, dict) and "bullets" in parsed and "market_reaction" in parsed:
+        # 필수 키 검증 (신규 3단 구조 또는 구버전 형식 모두 허용)
+        if isinstance(parsed, dict) and "market_reaction" in parsed and (
+            "bullets" in parsed or "key_event" in parsed
+        ):
             return parsed
         return None
     except (json.JSONDecodeError, ValueError):
@@ -94,7 +96,12 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
 2. 수치 우선: 주가, 목표가, 실적 퍼센트(%), 날짜 등 숫자가 포함된 문맥은 반드시 요약에 포함하십시오.
 3. 간결성: 미사여구를 빼고 건조하고 전문적인 리포트 톤(개조식)으로 작성하십시오.
 4. 언어: 반드시 자연스러운 한국어로 출력하십시오.
-5. JSON ONLY: 반드시 아래 JSON 형식으로만 응답하십시오. 마크다운, 코드블록, 설명 텍스트 없이 순수 JSON만 출력하십시오."""
+5. JSON ONLY: 반드시 아래 JSON 형식으로만 응답하십시오. 마크다운, 코드블록, 설명 텍스트 없이 순수 JSON만 출력하십시오.
+[출력 필드 역할 정의 - 중복 방지]
+- key_event: 가장 중요한 사건 1-2문장 (무슨 일이 있었는지 팩트만)
+- expected_impact: 해당 사건이 주가·시장에 미칠 전망 1-2문장
+- bullets: key_event/expected_impact에서 다루지 않은 세부 수치·보조 정보만 (부연 설명 위주, 최대 3개)
+  ※ key_event/expected_impact와 내용이 겹치는 bullets는 작성하지 말 것"""
 
     user_prompt = f"""
     [분석 대상 종목]: {stock_name}
@@ -106,7 +113,10 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
 
     [출력 형식 - 순수 JSON만, 코드블록 없이]
     {{
-      "bullets": ["핵심 포인트 1 (수치 포함)", "핵심 포인트 2", "핵심 포인트 3"],
+      "key_event": "핵심 사건 1-2문장 (수치/날짜 포함). 없으면 빈 문자열.",
+      "expected_impact": "주가·시장 예상 영향 1-2문장. 없으면 빈 문자열.",
+      "reference_indicators": ["투자자가 확인해야 할 지표1", "지표2", "지표3"],
+      "bullets": ["key_event/expected_impact와 겹치지 않는 보조 수치·세부정보 1", "보조정보 2"],
       "market_reaction": {{
         "verdict": "호재 또는 악재 또는 중립",
         "reason": "단기 주가 영향 이유 한 문장"
@@ -118,8 +128,11 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
       "flow_explanation": "원인 → 결과 → 영향 흐름 1-2문장"
     }}
 
-    - glossary_terms: 위 뉴스/요약에서 투자자가 모를 수 있는 금융·경제 용어 2-3개를 추출해 한 줄 정의. 없으면 빈 배열 [] 반환.
-    - flow_explanation: 현재 시장 상황의 인과관계를 '원인 → 결과 → 영향' 흐름으로 1-2문장. 없으면 빈 문자열 "" 반환.
+    - key_event/expected_impact: 제공된 뉴스에서 팩트만. 없으면 "" 반환.
+    - reference_indicators: 투자자가 추가로 확인해야 할 경제·기업 지표 2-4개. 없으면 [] 반환.
+    - bullets: key_event/expected_impact에서 이미 언급한 내용 제외, 보조 수치·세부 정보만. 없으면 [] 반환.
+    - glossary_terms: 투자자가 모를 수 있는 금융·경제 용어 2-3개, 한 줄 정의. 없으면 [] 반환.
+    - flow_explanation: 인과관계 흐름 1-2문장. 없으면 "" 반환.
     """
 
     models = MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"])

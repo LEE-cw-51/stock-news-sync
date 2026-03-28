@@ -9,6 +9,9 @@ interface ParsedSummary {
   trendInsight: string;
   glossaryTerms: GlossaryTerm[];
   flowExplanation: string;
+  keyEvent: string;
+  expectedImpact: string;
+  referenceIndicators: string[];
 }
 
 function parseAISummary(text: string): ParsedSummary {
@@ -49,7 +52,11 @@ function parseAISummary(text: string): ParsedSummary {
     }
   }
 
-  return { bullets, sentiment, sentimentDesc, trendInsight, glossaryTerms: [], flowExplanation: "" };
+  return {
+    bullets, sentiment, sentimentDesc, trendInsight,
+    glossaryTerms: [], flowExplanation: "",
+    keyEvent: "", expectedImpact: "", referenceIndicators: [],
+  };
 }
 
 function normalizeAISummary(input: string | AISummaryStructured): ParsedSummary {
@@ -64,6 +71,9 @@ function normalizeAISummary(input: string | AISummaryStructured): ParsedSummary 
       trendInsight: input.trend_insight ?? "",
       glossaryTerms: input.glossary_terms ?? [],
       flowExplanation: input.flow_explanation ?? "",
+      keyEvent: input.key_event ?? "",
+      expectedImpact: input.expected_impact ?? "",
+      referenceIndicators: input.reference_indicators ?? [],
     };
   }
   // 문자열 → 기존 정규식 파서 폴백 (하위 호환)
@@ -128,6 +138,13 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
   }
 
   const parsed = normalizeAISummary(summary);
+  const hasContent =
+    parsed.bullets.length > 0 ||
+    !!parsed.keyEvent ||
+    !!parsed.expectedImpact ||
+    parsed.referenceIndicators.length > 0 ||
+    !!parsed.flowExplanation ||
+    !!parsed.trendInsight;
 
   return (
     <div className={`p-6 rounded-3xl border ${style.gradient} relative overflow-hidden`}>
@@ -143,23 +160,72 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
         {style.icon} {style.title}
       </h3>
 
-      {parsed.bullets.length > 0 ? (
+      {hasContent ? (
         <div className="relative z-10">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">
-            🔍 핵심 요약
-          </p>
-          <ul className="space-y-2 mb-4">
-            {parsed.bullets.map((bullet, idx) => (
-              <li
-                key={idx}
-                className="flex items-start gap-2 text-sm text-slate-300 leading-relaxed"
-              >
-                <span className="text-slate-600 mt-1 flex-shrink-0">•</span>
-                <span>{bullet}</span>
-              </li>
-            ))}
-          </ul>
+          {/* 📌 핵심 사건 */}
+          {parsed.keyEvent && (
+            <div className="mb-4 pb-4 border-b border-slate-800/50">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
+                📌 핵심 사건
+              </p>
+              <p className="text-slate-300 text-[12px] leading-relaxed font-medium">
+                {parsed.keyEvent}
+              </p>
+            </div>
+          )}
 
+          {/* 📊 예상 영향 */}
+          {parsed.expectedImpact && (
+            <div className="mb-4 pb-4 border-b border-slate-800/50">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
+                📊 예상 영향
+              </p>
+              <p className="text-slate-400 text-[11px] leading-relaxed">
+                {parsed.expectedImpact}
+              </p>
+            </div>
+          )}
+
+          {/* 🔎 참고 지표 */}
+          {parsed.referenceIndicators.length > 0 && (
+            <div className="mb-4 pb-4 border-b border-slate-800/50">
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">
+                🔎 참고 지표
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {parsed.referenceIndicators.map((ind, idx) => (
+                  <span
+                    key={idx}
+                    className="px-2 py-0.5 bg-slate-800 rounded-full text-[10px] text-slate-400 border border-slate-700"
+                  >
+                    {ind}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 🔍 핵심 요약 (보조 수치) */}
+          {parsed.bullets.length > 0 && (
+            <>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3">
+                🔍 핵심 요약
+              </p>
+              <ul className="space-y-2 mb-4">
+                {parsed.bullets.map((bullet, idx) => (
+                  <li
+                    key={idx}
+                    className="flex items-start gap-2 text-sm text-slate-300 leading-relaxed"
+                  >
+                    <span className="text-slate-600 mt-1 flex-shrink-0">•</span>
+                    <span>{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+
+          {/* 🔗 시장 흐름 */}
           {parsed.flowExplanation && (
             <div className="mt-3 pt-3 border-t border-slate-800/50">
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
@@ -171,6 +237,7 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
             </div>
           )}
 
+          {/* 📈 추세 인사이트 */}
           {parsed.trendInsight && parsed.trendInsight !== "추세 데이터 없음" && (
             <div className="mt-3 pt-3 border-t border-slate-800/50">
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-1">
@@ -182,6 +249,7 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
             </div>
           )}
 
+          {/* 📖 용어 설명 */}
           {parsed.glossaryTerms.length > 0 && (
             <div className="mt-3 pt-3 border-t border-slate-800/50">
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-2">
@@ -198,6 +266,7 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
             </div>
           )}
 
+          {/* 감정 배지 */}
           {parsed.sentiment && (
             <div className="mt-4 pt-4 border-t border-slate-800/50">
               <span

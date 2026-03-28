@@ -99,7 +99,7 @@ def run_sync_engine_once():
                         "title": item.get("title"),
                         "link": item.get("url"),
                         "name": "Macro",
-                        "pubDate": item.get("date")  # [P1 Fix] news_service.py 반환 key는 "date"
+                        "pubDate": item.get("date"),  # [P1 Fix] news_service.py 반환 key는 "date"
                     }
                     frontend_feed["macro"].append(news_item)
             time.sleep(1)
@@ -118,7 +118,7 @@ def run_sync_engine_once():
                         "title": item.get("title"),
                         "link": item.get("url"),
                         "name": "한국 거시경제",
-                        "pubDate": item.get("date")
+                        "pubDate": item.get("date"),
                     }
                     frontend_feed["macro"].append(news_item)
             time.sleep(1)
@@ -162,7 +162,8 @@ def run_sync_engine_once():
                             "title": link_data.get("title"),
                             "link": link_data.get("url"),
                             "name": info['name'],
-                            "pubDate": link_data.get("date")  # [P1 Fix] news_service.py 반환 key는 "date"
+                            "pubDate": link_data.get("date"),  # [P1 Fix] news_service.py 반환 key는 "date"
+                            "symbol": symbol
                         }
                         frontend_feed[category].append(news_item)
                 time.sleep(1)

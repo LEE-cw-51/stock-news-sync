@@ -268,7 +268,7 @@ export default function Dashboard() {
 
           {/* RIGHT: 뉴스 피드 (탭 네비게이션 + AI 요약 + 뉴스) */}
           <section className="w-full md:w-[60%]">
-            <NewsFeedSection newsFeed={news_feed} aiSummaries={ai_summaries} />
+            <NewsFeedSection newsFeed={news_feed} aiSummaries={ai_summaries} userWatchlist={userWatchlist} />
           </section>
 
         </div>

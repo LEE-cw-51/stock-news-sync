@@ -1,3 +1,5 @@
+"use client";
+
 import { ArrowUpRight } from "lucide-react";
 import type { NewsItem } from "@/lib/types";
 
@@ -15,9 +17,10 @@ function formatDate(pubDate?: string): string {
 
 interface NewsCardProps {
   news: NewsItem;
+  onNewsClick?: (symbol: string) => void;
 }
 
-export default function NewsCard({ news }: NewsCardProps) {
+export default function NewsCard({ news, onNewsClick }: NewsCardProps) {
   const dateStr = formatDate(news.pubDate);
 
   return (
@@ -28,6 +31,11 @@ export default function NewsCard({ news }: NewsCardProps) {
             <span className="px-2 py-0.5 bg-slate-800 rounded text-[9px] text-slate-500 font-black uppercase tracking-widest">
               {news.name}
             </span>
+            {news.symbol && (
+              <span className="px-1.5 py-0.5 bg-blue-900/40 rounded text-[9px] text-blue-400 font-mono">
+                {news.symbol}
+              </span>
+            )}
             {dateStr && (
               <span className="text-[9px] text-slate-600">{dateStr}</span>
             )}
@@ -36,6 +44,7 @@ export default function NewsCard({ news }: NewsCardProps) {
             href={news.link}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => news.symbol && onNewsClick?.(news.symbol)}
             className="text-sm font-bold text-slate-200 group-hover:text-blue-400 transition-colors leading-relaxed block"
           >
             {news.title}

@@ -26,6 +26,7 @@ export interface NewsItem {
   link: string;
   name: string;
   pubDate?: string;
+  symbol?: string | null;
 }
 
 export interface GlossaryTerm {
@@ -34,14 +35,17 @@ export interface GlossaryTerm {
 }
 
 export interface AISummaryStructured {
-  bullets: string[];
+  bullets?: string[];
   market_reaction: {
     verdict: "호재" | "악재" | "중립";
     reason: string;
   };
-  trend_insight: string;
+  trend_insight?: string;
   glossary_terms?: GlossaryTerm[];
   flow_explanation?: string;
+  key_event?: string;
+  expected_impact?: string;
+  reference_indicators?: string[];
 }
 
 export interface FeedData {

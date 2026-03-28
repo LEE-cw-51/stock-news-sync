@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Globe, Briefcase, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import AISummaryCard from "./AISummaryCard";
 import NewsCard from "./NewsCard";
 import AdBanner from "@/components/AdBanner";
-import type { NewsItem, AISummaryStructured } from "@/lib/types";
+import type { NewsItem, AISummaryStructured, WatchlistItem } from "@/lib/types";
 
 type TabType = "macro" | "portfolio" | "watchlist";
 
@@ -22,6 +22,14 @@ const TABS: Tab[] = [
   { id: "watchlist", label: "관심종목", icon: <Star size={13} /> },
 ];
 
+const CLICK_HISTORY_KEY = "stock_news_click_history";
+const MAX_CLICK_HISTORY = 50;
+
+interface ClientState {
+  mounted: boolean;
+  clickHistory: Record<string, number>;
+}
+
 interface NewsFeedSectionProps {
   newsFeed?: {
     macro?: NewsItem[];
@@ -33,16 +41,114 @@ interface NewsFeedSectionProps {
     portfolio?: string | AISummaryStructured;
     watchlist?: string | AISummaryStructured;
   };
+  userWatchlist?: WatchlistItem[];
 }
 
 export default function NewsFeedSection({
   newsFeed,
   aiSummaries,
+  userWatchlist,
 }: NewsFeedSectionProps) {
   const [activeTab, setActiveTab] = useState<TabType>("macro");
+  // Hydration 에러 방지: 단일 setState로 mounted + clickHistory를 동시에 설정
+  const [clientState, setClientState] = useState<ClientState>({
+    mounted: false,
+    clickHistory: {},
+  });
 
-  const newsList = newsFeed?.[activeTab] ?? [];
+  useEffect(() => {
+    let loaded: Record<string, number> = {};
+    try {
+      const stored = localStorage.getItem(CLICK_HISTORY_KEY);
+      if (stored) loaded = JSON.parse(stored) as Record<string, number>;
+    } catch {
+      // localStorage 비활성화 또는 파싱 실패 — 무시
+    }
+    // 로드 시 개수 제한 일관 적용
+    const prunedLoaded = Object.fromEntries(
+      Object.entries(loaded).sort((a, b) => b[1] - a[1]).slice(0, MAX_CLICK_HISTORY)
+    );
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClientState((prev) => ({
+      ...prev,
+      mounted: true,
+      // 마운트 전 클릭 기록(메모리)과 로컬스토리지(과거 기록)를 병합, 최신 클릭 우선
+      clickHistory: Object.keys(prev.clickHistory).length > 0
+        ? { ...prunedLoaded, ...prev.clickHistory }
+        : prunedLoaded,
+    })); // SSR 하이드레이션 안전: 마운트 후 1회만 실행
+  }, []);
+
+  const watchlistSymbols = useMemo(
+    () => new Set(userWatchlist?.map((w) => w.symbol) ?? []),
+    [userWatchlist]
+  );
+
+  // clickHistory 변경 시 localStorage 동기화 (부작용을 updater 밖으로 분리)
+  useEffect(() => {
+    if (!clientState.mounted) return;
+    try { localStorage.setItem(CLICK_HISTORY_KEY, JSON.stringify(clientState.clickHistory)); }
+    catch { /* 무시 */ }
+  }, [clientState.mounted, clientState.clickHistory]);
+
+  // watchlist 변경 시 제거된 심볼 정리 + 프루닝 적용
+  useEffect(() => {
+    if (!clientState.mounted) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClientState((prev) => {
+      const filtered = Object.fromEntries(
+        Object.entries(prev.clickHistory)
+          .filter(([sym]) => watchlistSymbols.has(sym))
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, MAX_CLICK_HISTORY)
+      );
+      if (Object.keys(filtered).length === Object.keys(prev.clickHistory).length) return prev;
+      return { ...prev, clickHistory: filtered };
+    });
+  // clientState.mounted가 true로 바뀐 뒤 watchlistSymbols 변경 시에만 재실행
+  }, [clientState.mounted, watchlistSymbols]);
+
+  // 관심종목 심볼에 대해서만 기록 (updater는 순수 상태 계산만, localStorage는 sync effect가 담당)
+  const handleNewsClick = useCallback((symbol: string) => {
+    if (!watchlistSymbols.has(symbol)) return;
+    setClientState((prev) => {
+      const next = { ...prev.clickHistory, [symbol]: (prev.clickHistory[symbol] ?? 0) + 1 };
+      const pruned = Object.fromEntries(
+        Object.entries(next)
+          .filter(([sym]) => watchlistSymbols.has(sym))
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, MAX_CLICK_HISTORY)
+      );
+      return { ...prev, clickHistory: pruned };
+    });
+  }, [watchlistSymbols]);
+
   const summary = aiSummaries?.[activeTab];
+
+  // isMounted + 비매크로 탭일 때만 정렬 적용 (SSR 결과와 일치 보장)
+  const sortedNewsList = useMemo(() => {
+    const rawList = newsFeed?.[activeTab] ?? [];
+    if (!clientState.mounted || activeTab === "macro" || !userWatchlist?.length) {
+      return rawList;
+    }
+    // 원본 인덱스를 tie-breaker로 보존해 stable sort 보장
+    const decorated = rawList.map((item, index) => ({ item, index }));
+    decorated.sort((a, b) => {
+      const aSymbol = a.item.symbol;
+      const bSymbol = b.item.symbol;
+      const aIn = aSymbol && watchlistSymbols.has(aSymbol) ? 1 : 0;
+      const bIn = bSymbol && watchlistSymbols.has(bSymbol) ? 1 : 0;
+      if (bIn !== aIn) return bIn - aIn;
+      // 관심 종목 내에서 클릭 횟수 많을수록 상단
+      if (aIn && bIn) {
+        const aClicks = aSymbol ? (clientState.clickHistory[aSymbol] ?? 0) : 0;
+        const bClicks = bSymbol ? (clientState.clickHistory[bSymbol] ?? 0) : 0;
+        if (bClicks !== aClicks) return bClicks - aClicks;
+      }
+      return a.index - b.index; // 원본 순서 보존 (stable sort)
+    });
+    return decorated.map(({ item }) => item);
+  }, [clientState, newsFeed, activeTab, userWatchlist, watchlistSymbols]);
 
   return (
     <section className="space-y-6">
@@ -75,9 +181,13 @@ export default function NewsFeedSection({
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
           Latest Headlines
         </h3>
-        {newsList.length > 0 ? (
-          newsList.map((news, idx) => (
-            <NewsCard key={`${news.link}-${idx}`} news={news} />
+        {sortedNewsList.length > 0 ? (
+          sortedNewsList.map((news) => (
+            <NewsCard
+              key={news.pubDate ? `${news.link}-${news.pubDate}` : news.link}
+              news={news}
+              onNewsClick={handleNewsClick}
+            />
           ))
         ) : (
           <div className="text-center py-12 text-slate-600 text-sm">
