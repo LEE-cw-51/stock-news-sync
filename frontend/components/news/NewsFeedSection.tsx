@@ -57,21 +57,25 @@ export default function NewsFeedSection({
   });
 
   useEffect(() => {
-    let clickHistory: Record<string, number> = {};
+    let loaded: Record<string, number> = {};
     try {
       const stored = localStorage.getItem(CLICK_HISTORY_KEY);
-      if (stored) clickHistory = JSON.parse(stored) as Record<string, number>;
+      if (stored) loaded = JSON.parse(stored) as Record<string, number>;
     } catch {
       // localStorage 비활성화 또는 파싱 실패 — 무시
     }
+    // 로드 시 개수 제한 일관 적용
+    const prunedLoaded = Object.fromEntries(
+      Object.entries(loaded).sort((a, b) => b[1] - a[1]).slice(0, MAX_CLICK_HISTORY)
+    );
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setClientState((prev) => ({
       ...prev,
       mounted: true,
       // 마운트 전 클릭 기록(메모리)과 로컬스토리지(과거 기록)를 병합, 최신 클릭 우선
       clickHistory: Object.keys(prev.clickHistory).length > 0
-        ? { ...clickHistory, ...prev.clickHistory }
-        : clickHistory,
+        ? { ...prunedLoaded, ...prev.clickHistory }
+        : prunedLoaded,
     })); // SSR 하이드레이션 안전: 마운트 후 1회만 실행
   }, []);
 
@@ -80,22 +84,31 @@ export default function NewsFeedSection({
     [userWatchlist]
   );
 
-  // watchlist 변경 시 기존 clickHistory에서 제거된 심볼 정리
+  // clickHistory 변경 시 localStorage 동기화 (부작용을 updater 밖으로 분리)
+  useEffect(() => {
+    if (!clientState.mounted) return;
+    try { localStorage.setItem(CLICK_HISTORY_KEY, JSON.stringify(clientState.clickHistory)); }
+    catch { /* 무시 */ }
+  }, [clientState.mounted, clientState.clickHistory]);
+
+  // watchlist 변경 시 제거된 심볼 정리 + 프루닝 적용
   useEffect(() => {
     if (!clientState.mounted) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setClientState((prev) => {
       const filtered = Object.fromEntries(
-        Object.entries(prev.clickHistory).filter(([sym]) => watchlistSymbols.has(sym))
+        Object.entries(prev.clickHistory)
+          .filter(([sym]) => watchlistSymbols.has(sym))
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, MAX_CLICK_HISTORY)
       );
       if (Object.keys(filtered).length === Object.keys(prev.clickHistory).length) return prev;
-      try { localStorage.setItem(CLICK_HISTORY_KEY, JSON.stringify(filtered)); } catch { /* 무시 */ }
       return { ...prev, clickHistory: filtered };
     });
   // clientState.mounted가 true로 바뀐 뒤 watchlistSymbols 변경 시에만 재실행
   }, [clientState.mounted, watchlistSymbols]);
 
-  // 관심종목 심볼에 대해서만 기록, 프루닝 시도 watchlist 기준 필터링
+  // 관심종목 심볼에 대해서만 기록 (updater는 순수 상태 계산만, localStorage는 sync effect가 담당)
   const handleNewsClick = useCallback((symbol: string) => {
     if (!watchlistSymbols.has(symbol)) return;
     setClientState((prev) => {
@@ -106,11 +119,6 @@ export default function NewsFeedSection({
           .sort((a, b) => b[1] - a[1])
           .slice(0, MAX_CLICK_HISTORY)
       );
-      try {
-        localStorage.setItem(CLICK_HISTORY_KEY, JSON.stringify(pruned));
-      } catch {
-        // 저장 실패 — 무시
-      }
       return { ...prev, clickHistory: pruned };
     });
   }, [watchlistSymbols]);
