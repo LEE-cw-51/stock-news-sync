@@ -184,7 +184,7 @@ export default function NewsFeedSection({
         {sortedNewsList.length > 0 ? (
           sortedNewsList.map((news) => (
             <NewsCard
-              key={`${news.link}-${news.name}`}
+              key={news.pubDate ? `${news.link}-${news.pubDate}` : news.link}
               news={news}
               onNewsClick={handleNewsClick}
             />
