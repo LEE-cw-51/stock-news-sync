@@ -65,7 +65,14 @@ export default function NewsFeedSection({
       // localStorage 비활성화 또는 파싱 실패 — 무시
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setClientState({ mounted: true, clickHistory }); // SSR 하이드레이션 안전: 마운트 후 1회만 실행
+    setClientState((prev) => ({
+      ...prev,
+      mounted: true,
+      // 마운트 전 클릭 기록(메모리)과 로컬스토리지(과거 기록)를 병합, 최신 클릭 우선
+      clickHistory: Object.keys(prev.clickHistory).length > 0
+        ? { ...clickHistory, ...prev.clickHistory }
+        : clickHistory,
+    })); // SSR 하이드레이션 안전: 마운트 후 1회만 실행
   }, []);
 
   const watchlistSymbols = useMemo(
@@ -169,7 +176,7 @@ export default function NewsFeedSection({
         {sortedNewsList.length > 0 ? (
           sortedNewsList.map((news) => (
             <NewsCard
-              key={news.link}
+              key={`${news.link}-${news.name}`}
               news={news}
               onNewsClick={handleNewsClick}
             />

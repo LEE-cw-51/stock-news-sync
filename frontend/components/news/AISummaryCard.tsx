@@ -1,5 +1,3 @@
-"use client";
-
 import { Zap, Briefcase, Star } from "lucide-react";
 import type { ReactNode } from "react";
 import type { AISummaryStructured, GlossaryTerm } from "@/lib/types";
