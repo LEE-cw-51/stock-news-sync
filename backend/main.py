@@ -100,7 +100,6 @@ def run_sync_engine_once():
                         "link": item.get("url"),
                         "name": "Macro",
                         "pubDate": item.get("date"),  # [P1 Fix] news_service.py 반환 key는 "date"
-                        "symbol": None
                     }
                     frontend_feed["macro"].append(news_item)
             time.sleep(1)
@@ -120,7 +119,6 @@ def run_sync_engine_once():
                         "link": item.get("url"),
                         "name": "한국 거시경제",
                         "pubDate": item.get("date"),
-                        "symbol": None
                     }
                     frontend_feed["macro"].append(news_item)
             time.sleep(1)

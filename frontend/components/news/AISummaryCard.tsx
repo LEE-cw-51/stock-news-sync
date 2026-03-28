@@ -138,7 +138,13 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
   }
 
   const parsed = normalizeAISummary(summary);
-  const hasContent = parsed.bullets.length > 0 || !!parsed.keyEvent;
+  const hasContent =
+    parsed.bullets.length > 0 ||
+    !!parsed.keyEvent ||
+    !!parsed.expectedImpact ||
+    parsed.referenceIndicators.length > 0 ||
+    !!parsed.flowExplanation ||
+    !!parsed.trendInsight;
 
   return (
     <div className={`p-6 rounded-3xl border ${style.gradient} relative overflow-hidden`}>

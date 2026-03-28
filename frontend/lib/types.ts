@@ -26,7 +26,7 @@ export interface NewsItem {
   link: string;
   name: string;
   pubDate?: string;
-  symbol?: string;
+  symbol?: string | null;
 }
 
 export interface GlossaryTerm {
@@ -35,7 +35,7 @@ export interface GlossaryTerm {
 }
 
 export interface AISummaryStructured {
-  bullets: string[];
+  bullets?: string[];
   market_reaction: {
     verdict: "호재" | "악재" | "중립";
     reason: string;

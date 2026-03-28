@@ -68,7 +68,14 @@ export default function NewsFeedSection({
     setClientState({ mounted: true, clickHistory }); // SSR 하이드레이션 안전: 마운트 후 1회만 실행
   }, []);
 
+  const watchlistSymbols = useMemo(
+    () => new Set(userWatchlist?.map((w) => w.symbol) ?? []),
+    [userWatchlist]
+  );
+
+  // 관심종목 심볼에 대해서만 기록: watchlist 외 심볼이 슬롯을 차지하지 않도록
   const handleNewsClick = useCallback((symbol: string) => {
+    if (!watchlistSymbols.has(symbol)) return;
     setClientState((prev) => {
       const next = { ...prev.clickHistory, [symbol]: (prev.clickHistory[symbol] ?? 0) + 1 };
       // 최대 50개 유지: 클릭 횟수 내림차순 정렬 후 자르기
@@ -84,14 +91,9 @@ export default function NewsFeedSection({
       }
       return { ...prev, clickHistory: pruned };
     });
-  }, []);
+  }, [watchlistSymbols]);
 
   const summary = aiSummaries?.[activeTab];
-
-  const watchlistSymbols = useMemo(
-    () => new Set(userWatchlist?.map((w) => w.symbol) ?? []),
-    [userWatchlist]
-  );
 
   // isMounted + 비매크로 탭일 때만 정렬 적용 (SSR 결과와 일치 보장)
   const sortedNewsList = useMemo(() => {
@@ -99,18 +101,23 @@ export default function NewsFeedSection({
     if (!clientState.mounted || activeTab === "macro" || !userWatchlist?.length) {
       return rawList;
     }
-    return [...rawList].sort((a, b) => {
-      const aIn = a.symbol && watchlistSymbols.has(a.symbol) ? 1 : 0;
-      const bIn = b.symbol && watchlistSymbols.has(b.symbol) ? 1 : 0;
+    // 원본 인덱스를 tie-breaker로 보존해 stable sort 보장
+    const decorated = rawList.map((item, index) => ({ item, index }));
+    decorated.sort((a, b) => {
+      const aSymbol = a.item.symbol;
+      const bSymbol = b.item.symbol;
+      const aIn = aSymbol && watchlistSymbols.has(aSymbol) ? 1 : 0;
+      const bIn = bSymbol && watchlistSymbols.has(bSymbol) ? 1 : 0;
       if (bIn !== aIn) return bIn - aIn;
       // 관심 종목 내에서 클릭 횟수 많을수록 상단
       if (aIn && bIn) {
-        const aClicks = a.symbol ? (clientState.clickHistory[a.symbol] ?? 0) : 0;
-        const bClicks = b.symbol ? (clientState.clickHistory[b.symbol] ?? 0) : 0;
+        const aClicks = aSymbol ? (clientState.clickHistory[aSymbol] ?? 0) : 0;
+        const bClicks = bSymbol ? (clientState.clickHistory[bSymbol] ?? 0) : 0;
         if (bClicks !== aClicks) return bClicks - aClicks;
       }
-      return 0;
+      return a.index - b.index; // 원본 순서 보존 (stable sort)
     });
+    return decorated.map(({ item }) => item);
   }, [clientState, newsFeed, activeTab, userWatchlist, watchlistSymbols]);
 
   return (

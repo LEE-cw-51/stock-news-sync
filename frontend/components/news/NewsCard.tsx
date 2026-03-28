@@ -22,10 +22,7 @@ export default function NewsCard({ news, onNewsClick }: NewsCardProps) {
   const dateStr = formatDate(news.pubDate);
 
   return (
-    <div
-      className="group bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all cursor-pointer"
-      onClick={() => news.symbol && onNewsClick?.(news.symbol)}
-    >
+    <div className="group bg-slate-900 p-5 rounded-2xl border border-slate-800 hover:border-slate-600 transition-all">
       <div className="flex justify-between items-start">
         <div className="flex-1 pr-4">
           <div className="flex items-center gap-2 mb-2">
@@ -45,6 +42,7 @@ export default function NewsCard({ news, onNewsClick }: NewsCardProps) {
             href={news.link}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => news.symbol && onNewsClick?.(news.symbol)}
             className="text-sm font-bold text-slate-200 group-hover:text-blue-400 transition-colors leading-relaxed block"
           >
             {news.title}
