@@ -105,8 +105,8 @@ export default function NewsFeedSection({
       if (bIn !== aIn) return bIn - aIn;
       // 관심 종목 내에서 클릭 횟수 많을수록 상단
       if (aIn && bIn) {
-        const aClicks = (a.symbol && clientState.clickHistory[a.symbol]) ?? 0;
-        const bClicks = (b.symbol && clientState.clickHistory[b.symbol]) ?? 0;
+        const aClicks = a.symbol ? (clientState.clickHistory[a.symbol] ?? 0) : 0;
+        const bClicks = b.symbol ? (clientState.clickHistory[b.symbol] ?? 0) : 0;
         if (bClicks !== aClicks) return bClicks - aClicks;
       }
       return 0;
