@@ -73,14 +73,29 @@ export default function NewsFeedSection({
     [userWatchlist]
   );
 
-  // 관심종목 심볼에 대해서만 기록: watchlist 외 심볼이 슬롯을 차지하지 않도록
+  // watchlist 변경 시 기존 clickHistory에서 제거된 심볼 정리
+  useEffect(() => {
+    if (!clientState.mounted) return;
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setClientState((prev) => {
+      const filtered = Object.fromEntries(
+        Object.entries(prev.clickHistory).filter(([sym]) => watchlistSymbols.has(sym))
+      );
+      if (Object.keys(filtered).length === Object.keys(prev.clickHistory).length) return prev;
+      try { localStorage.setItem(CLICK_HISTORY_KEY, JSON.stringify(filtered)); } catch { /* 무시 */ }
+      return { ...prev, clickHistory: filtered };
+    });
+  // clientState.mounted가 true로 바뀐 뒤 watchlistSymbols 변경 시에만 재실행
+  }, [clientState.mounted, watchlistSymbols]);
+
+  // 관심종목 심볼에 대해서만 기록, 프루닝 시도 watchlist 기준 필터링
   const handleNewsClick = useCallback((symbol: string) => {
     if (!watchlistSymbols.has(symbol)) return;
     setClientState((prev) => {
       const next = { ...prev.clickHistory, [symbol]: (prev.clickHistory[symbol] ?? 0) + 1 };
-      // 최대 50개 유지: 클릭 횟수 내림차순 정렬 후 자르기
       const pruned = Object.fromEntries(
         Object.entries(next)
+          .filter(([sym]) => watchlistSymbols.has(sym))
           .sort((a, b) => b[1] - a[1])
           .slice(0, MAX_CLICK_HISTORY)
       );
