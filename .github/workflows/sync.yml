@@ -147,20 +147,21 @@ jobs:
 
       - name: Lambda 실행 (데이터 동기화)
         run: |
-          # FunctionError 등 메타데이터는 stdout으로, 응답 payload는 output.json으로 분리 수신
+          # 비동기 호출(Event): 즉시 202 반환, Lambda는 백그라운드 실행
+          # 동기 호출 시 Lambda 실행시간(~70s)으로 인해 GitHub Actions timeout 발생
           INVOKE_RESULT=$(aws lambda invoke \
             --function-name stock-news-sync \
             --cli-binary-format raw-in-base64-out \
+            --invocation-type Event \
             --payload '{}' \
-            --log-type Tail \
             output.json)
 
           echo "$INVOKE_RESULT"
-          cat output.json
 
-          # Lambda 내부 오류 감지: FunctionError는 stdout(메타데이터)에서 읽어야 함
-          FUNCTION_ERROR=$(echo "$INVOKE_RESULT" | jq -r '.FunctionError // empty')
-          if [ -n "$FUNCTION_ERROR" ] && [ "$FUNCTION_ERROR" != "null" ]; then
-            echo "Lambda FunctionError: $FUNCTION_ERROR"
+          # 202 = 비동기 트리거 성공
+          STATUS_CODE=$(echo "$INVOKE_RESULT" | jq -r '.StatusCode // empty')
+          if [ "$STATUS_CODE" != "202" ]; then
+            echo "Lambda invoke failed with StatusCode: $STATUS_CODE"
             exit 1
           fi
+          echo "Lambda triggered successfully (async). Check CloudWatch for execution result."
