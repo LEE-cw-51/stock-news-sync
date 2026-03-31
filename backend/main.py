@@ -70,18 +70,21 @@ def run_sync_engine_once():
         }
     }
     collected_indices = {"market_indices": {"domestic": {}, "global": {}}, "key_indicators": {}}
-    for path, items in indices_config.items():
-        updates = get_market_indices(items)
-        for key in updates:
-            updates[key]["updated_at"] = now_str
-        db_svc.update_market_indices(path, updates)
-        # Supabase final_data에 포함하기 위해 누적
-        if path == "market_indices/domestic":
-            collected_indices["market_indices"]["domestic"] = updates
-        elif path == "market_indices/global":
-            collected_indices["market_indices"]["global"] = updates
-        elif path == "key_indicators":
-            collected_indices["key_indicators"] = updates
+    try:
+        for path, items in indices_config.items():
+            updates = get_market_indices(items)
+            for key in updates:
+                updates[key]["updated_at"] = now_str
+            db_svc.update_market_indices(path, updates)
+            # Supabase final_data에 포함하기 위해 누적
+            if path == "market_indices/domestic":
+                collected_indices["market_indices"]["domestic"] = updates
+            elif path == "market_indices/global":
+                collected_indices["market_indices"]["global"] = updates
+            elif path == "key_indicators":
+                collected_indices["key_indicators"] = updates
+    except Exception as e:
+        logger.error("[Step A] 지수 수집 실패 (빈 값으로 계속 진행): %s", e)
 
     # [B] 뉴스 데이터 수집 및 구조화
     logger.info("[Step B] 뉴스 데이터 수집 시작")
@@ -184,11 +187,15 @@ def run_sync_engine_once():
 
     # [C] AI 요약 생성
     logger.info("[Step C] AI 요약 생성 시작")
-    ai_summaries = {
-        "macro":     generate_ai_summary("글로벌 경제",   ai_contexts["macro"],     category="macro"),
-        "portfolio": generate_ai_summary("내 포트폴리오", ai_contexts["portfolio"], category="portfolio"),
-        "watchlist": generate_ai_summary("관심 종목",    ai_contexts["watchlist"], category="watchlist"),
-    }
+    try:
+        ai_summaries = {
+            "macro":     generate_ai_summary("글로벌 경제",   ai_contexts["macro"],     category="macro"),
+            "portfolio": generate_ai_summary("내 포트폴리오", ai_contexts["portfolio"], category="portfolio"),
+            "watchlist": generate_ai_summary("관심 종목",    ai_contexts["watchlist"], category="watchlist"),
+        }
+    except Exception as e:
+        logger.error("[Step C] AI 요약 생성 실패 (빈 값으로 계속 진행): %s", e)
+        ai_summaries = {"macro": "", "portfolio": "", "watchlist": ""}
 
     # [D] 최종 데이터 저장
     logger.info("[Step D] Firebase 저장 시작")

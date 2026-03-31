@@ -5,10 +5,13 @@ on:
     branches:
       - main
   workflow_dispatch:
+  schedule:
+    - cron: '0 1,7,13,19 * * *'  # 하루 4회 (KST 10시/16시/22시/04시)
 
 jobs:
-  # 프론트엔드 빌드 검증 (Lambda 배포와 병렬 실행)
+  # 프론트엔드 빌드 검증 (push/dispatch 시에만 실행)
   frontend-check:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -37,6 +40,7 @@ jobs:
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder
 
   deploy:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -130,3 +134,26 @@ jobs:
 
           # 환경변수가 담긴 임시 파일 즉시 삭제
           rm -f lambda_env.json
+
+  # Lambda 데이터 동기화 실행 (배포 후 + 스케줄 실행)
+  invoke:
+    name: Lambda 데이터 동기화 실행
+    runs-on: ubuntu-latest
+    needs: [deploy]
+    if: always() && (needs.deploy.result == 'success' || github.event_name == 'schedule')
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-2
+
+      - name: Lambda 실행 (데이터 동기화)
+        run: |
+          aws lambda invoke \
+            --function-name stock-news-sync \
+            --payload '{}' \
+            --log-type Tail \
+            output.json
+          cat output.json
