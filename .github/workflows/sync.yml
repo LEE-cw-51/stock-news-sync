@@ -147,18 +147,20 @@ jobs:
 
       - name: Lambda 실행 (데이터 동기화)
         run: |
-          aws lambda invoke \
+          # FunctionError 등 메타데이터는 stdout으로, 응답 payload는 output.json으로 분리 수신
+          INVOKE_RESULT=$(aws lambda invoke \
             --function-name stock-news-sync \
             --cli-binary-format raw-in-base64-out \
             --payload '{}' \
             --log-type Tail \
-            output.json
+            output.json)
 
+          echo "$INVOKE_RESULT"
           cat output.json
 
-          # Lambda 내부 오류 감지 (FunctionError 발생 시 워크플로우 실패 처리)
-          FUNCTION_ERROR=$(jq -r '.FunctionError // empty' output.json)
-          if [ -n "$FUNCTION_ERROR" ]; then
+          # Lambda 내부 오류 감지: FunctionError는 stdout(메타데이터)에서 읽어야 함
+          FUNCTION_ERROR=$(echo "$INVOKE_RESULT" | jq -r '.FunctionError // empty')
+          if [ -n "$FUNCTION_ERROR" ] && [ "$FUNCTION_ERROR" != "null" ]; then
             echo "Lambda FunctionError: $FUNCTION_ERROR"
             exit 1
           fi

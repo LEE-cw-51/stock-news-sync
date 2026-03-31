@@ -202,7 +202,7 @@ def run_sync_engine_once():
         logger.warning("[Step C] watchlist 요약 생성 실패 (빈 값으로 계속 진행): %s", e)
 
     # [D] 최종 데이터 저장
-    logger.info("[Step D] Firebase 저장 시작")
+    logger.info("[Step D] Supabase 저장 시작")
     final_data = {
         "updated_at": now_str,
         "market_indices": collected_indices["market_indices"],
