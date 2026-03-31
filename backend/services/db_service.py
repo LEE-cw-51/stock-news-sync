@@ -19,7 +19,7 @@ def _sanitize_floats(obj: Any) -> Any:
     if isinstance(obj, bool):
         return obj
     if isinstance(obj, numbers.Integral):
-        return obj
+        return int(obj)  # numpy.int64 등 → 표준 int 변환 (JSON 직렬화 보장)
     if isinstance(obj, numbers.Real):
         try:
             f = float(obj)
