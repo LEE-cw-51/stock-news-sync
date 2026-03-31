@@ -1,12 +1,13 @@
 import os
 import math
 import logging
+from typing import Any
 import requests
 
 logger = logging.getLogger(__name__)
 
 
-def _sanitize_floats(obj):
+def _sanitize_floats(obj: Any) -> Any:
     """NaN/Inf float 값을 0으로 치환 (JSON 직렬화 오류 방지).
 
     yfinance가 장 마감 또는 데이터 없는 종목에 대해 NaN/Inf를 반환할 수 있음.
