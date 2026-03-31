@@ -1,8 +1,24 @@
 import os
+import math
 import logging
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_floats(obj):
+    """NaN/Inf float 값을 0으로 치환 (JSON 직렬화 오류 방지).
+
+    yfinance가 장 마감 또는 데이터 없는 종목에 대해 NaN/Inf를 반환할 수 있음.
+    """
+    if isinstance(obj, float):
+        return 0.0 if (math.isnan(obj) or math.isinf(obj)) else obj
+    if isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_floats(v) for v in obj]
+    return obj
+
 
 class DBService:
     def __init__(self):
@@ -27,7 +43,7 @@ class DBService:
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates",
         }
-        payload = {"id": 1, **data}
+        payload = _sanitize_floats({"id": 1, **data})
         try:
             resp = requests.post(url, json=payload, headers=headers, timeout=10)
             resp.raise_for_status()
