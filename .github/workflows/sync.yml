@@ -153,4 +153,12 @@ jobs:
             --payload '{}' \
             --log-type Tail \
             output.json
+
           cat output.json
+
+          # Lambda 내부 오류 감지 (FunctionError 발생 시 워크플로우 실패 처리)
+          FUNCTION_ERROR=$(jq -r '.FunctionError // empty' output.json)
+          if [ -n "$FUNCTION_ERROR" ]; then
+            echo "Lambda FunctionError: $FUNCTION_ERROR"
+            exit 1
+          fi

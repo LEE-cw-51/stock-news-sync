@@ -84,7 +84,7 @@ def run_sync_engine_once():
             elif path == "key_indicators":
                 collected_indices["key_indicators"] = updates
         except Exception as e:
-            logger.error("[Step A] %s 수집 실패 (다음 경로 계속 진행): %s", path, e)
+            logger.warning("[Step A] %s 수집 실패 (다음 경로 계속 진행): %s", path, e)
 
     # [B] 뉴스 데이터 수집 및 구조화
     logger.info("[Step B] 뉴스 데이터 수집 시작")
@@ -187,7 +187,7 @@ def run_sync_engine_once():
 
     # [C] AI 요약 생성 (카테고리별 개별 try/except — 일부 실패 시 나머지 유지)
     logger.info("[Step C] AI 요약 생성 시작")
-    ai_summaries: dict = {"macro": "", "portfolio": "", "watchlist": ""}
+    ai_summaries: dict[str, dict | str] = {"macro": "", "portfolio": "", "watchlist": ""}
     try:
         ai_summaries["macro"] = generate_ai_summary("글로벌 경제", ai_contexts["macro"], category="macro")
     except Exception as e:
