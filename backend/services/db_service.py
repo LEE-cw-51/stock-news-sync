@@ -1,8 +1,37 @@
 import os
+import math
+import numbers
 import logging
+from typing import Any
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _sanitize_floats(obj: Any) -> Any:
+    """NaN/Inf float 값을 0으로 치환 (JSON 직렬화 오류 방지).
+
+    yfinance/pandas 경유 numpy.float64 등 float 서브타입도 커버.
+    - bool: int 서브클래스이므로 먼저 제외
+    - numbers.Integral (int, numpy.int64 등): NaN/Inf 불가 → 그대로 반환
+    - numbers.Real (float, numpy.float64 등): NaN/Inf 체크 후 0.0으로 치환
+    """
+    if isinstance(obj, bool):
+        return obj
+    if isinstance(obj, numbers.Integral):
+        return int(obj)  # numpy.int64 등 → 표준 int 변환 (JSON 직렬화 보장)
+    if isinstance(obj, numbers.Real):
+        try:
+            f = float(obj)
+            return 0.0 if (math.isnan(f) or math.isinf(f)) else f
+        except (ValueError, OverflowError):
+            return 0.0
+    if isinstance(obj, dict):
+        return {k: _sanitize_floats(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_floats(v) for v in obj]
+    return obj
+
 
 class DBService:
     def __init__(self):
@@ -27,7 +56,7 @@ class DBService:
             "Content-Type": "application/json",
             "Prefer": "resolution=merge-duplicates",
         }
-        payload = {"id": 1, **data}
+        payload = _sanitize_floats({"id": 1, **data})
         try:
             resp = requests.post(url, json=payload, headers=headers, timeout=10)
             resp.raise_for_status()
