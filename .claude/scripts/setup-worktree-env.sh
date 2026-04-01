@@ -29,7 +29,9 @@ if ! GIT_COMMON_DIR="$(git -C "$WORKTREE_PATH" rev-parse --git-common-dir 2>/dev
   echo "   워크트리 루트 디렉터리를 전달했는지 확인해 주세요."
   exit 1
 fi
-REPO_ROOT="$(cd "$(git -C "$WORKTREE_PATH" rev-parse --git-common-dir)/.." && pwd)"
+# [Copilot] GIT_COMMON_DIR 재사용 + WORKTREE_PATH 기준 절대경로화
+# (--git-common-dir이 상대경로 반환 시에도 정확히 동작)
+REPO_ROOT="$(cd "$WORKTREE_PATH" && cd "$GIT_COMMON_DIR/.." && pwd)"
 
 link_or_copy() {
   local src="$1"
