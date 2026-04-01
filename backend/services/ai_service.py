@@ -69,7 +69,7 @@ def _parse_json_response(raw: str) -> dict | None:
     try:
         parsed = json.loads(cleaned)
         # 필수 키 검증 (신규 3단 구조 또는 구버전 형식 모두 허용)
-        if isinstance(parsed, dict) and "market_reaction" in parsed and (
+        if isinstance(parsed, dict) and (
             "bullets" in parsed or "key_event" in parsed
         ):
             return parsed
@@ -117,10 +117,6 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
       "expected_impact": "주가·시장 예상 영향 1-2문장. 없으면 빈 문자열.",
       "reference_indicators": ["투자자가 확인해야 할 지표1", "지표2", "지표3"],
       "bullets": ["key_event/expected_impact와 겹치지 않는 보조 수치·세부정보 1", "보조정보 2"],
-      "market_reaction": {{
-        "verdict": "호재 또는 악재 또는 중립",
-        "reason": "단기 주가 영향 이유 한 문장"
-      }},
       "trend_insight": "주가 추세 데이터 기반 1-2문장 또는 추세 데이터 없음",
       "glossary_terms": [
         {{"term": "용어명", "definition": "한 줄 정의"}}

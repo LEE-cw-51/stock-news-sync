@@ -4,8 +4,6 @@ import type { AISummaryStructured, GlossaryTerm } from "@/lib/types";
 
 interface ParsedSummary {
   bullets: string[];
-  sentiment: "호재" | "악재" | "중립" | null;
-  sentimentDesc: string;
   trendInsight: string;
   glossaryTerms: GlossaryTerm[];
   flowExplanation: string;
@@ -17,8 +15,6 @@ interface ParsedSummary {
 function parseAISummary(text: string): ParsedSummary {
   const lines = text.split("\n").filter(Boolean);
   const bullets: string[] = [];
-  let sentiment: "호재" | "악재" | "중립" | null = null;
-  let sentimentDesc = "";
   let trendInsight = "";
   let inTrend = false;
 
@@ -40,20 +36,10 @@ function parseAISummary(text: string): ParsedSummary {
       continue;
     }
     inTrend = false;
-    if (cleaned.includes("호재") && !sentiment) {
-      sentiment = "호재";
-      sentimentDesc = cleaned.replace(/📊[^:]*:\s*/, "");
-    } else if (cleaned.includes("악재") && !sentiment) {
-      sentiment = "악재";
-      sentimentDesc = cleaned.replace(/📊[^:]*:\s*/, "");
-    } else if (cleaned.includes("중립") && !sentiment) {
-      sentiment = "중립";
-      sentimentDesc = cleaned.replace(/📊[^:]*:\s*/, "");
-    }
   }
 
   return {
-    bullets, sentiment, sentimentDesc, trendInsight,
+    bullets, trendInsight,
     glossaryTerms: [], flowExplanation: "",
     keyEvent: "", expectedImpact: "", referenceIndicators: [],
   };
@@ -64,10 +50,6 @@ function normalizeAISummary(input: string | AISummaryStructured): ParsedSummary 
     // JSON 구조화 데이터 → 직접 매핑
     return {
       bullets: input.bullets ?? [],
-      sentiment: (["호재", "악재", "중립"].includes(input.market_reaction?.verdict)
-        ? input.market_reaction.verdict
-        : null) as "호재" | "악재" | "중립" | null,
-      sentimentDesc: input.market_reaction?.reason ?? "",
       trendInsight: input.trend_insight ?? "",
       glossaryTerms: input.glossary_terms ?? [],
       flowExplanation: input.flow_explanation ?? "",
@@ -79,12 +61,6 @@ function normalizeAISummary(input: string | AISummaryStructured): ParsedSummary 
   // 문자열 → 기존 정규식 파서 폴백 (하위 호환)
   return parseAISummary(input);
 }
-
-const SENTIMENT_STYLES = {
-  호재: "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30",
-  악재: "bg-red-500/20 text-red-400 border border-red-500/30",
-  중립: "bg-slate-500/20 text-slate-400 border border-slate-500/30",
-} as const;
 
 type CategoryType = "macro" | "portfolio" | "watchlist";
 
@@ -266,22 +242,6 @@ export default function AISummaryCard({ category, summary }: AISummaryCardProps)
             </div>
           )}
 
-          {/* 감정 배지 */}
-          {parsed.sentiment && (
-            <div className="mt-4 pt-4 border-t border-slate-800/50">
-              <span
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold ${SENTIMENT_STYLES[parsed.sentiment]}`}
-              >
-                {parsed.sentiment === "호재" ? "📈" : parsed.sentiment === "악재" ? "📉" : "➡️"}{" "}
-                {parsed.sentiment}
-              </span>
-              {parsed.sentimentDesc && (
-                <p className="text-slate-500 text-[11px] mt-2 leading-relaxed">
-                  {parsed.sentimentDesc}
-                </p>
-              )}
-            </div>
-          )}
         </div>
       ) : (
         <div className="text-slate-300 text-sm leading-8 whitespace-pre-wrap font-medium relative z-10">
