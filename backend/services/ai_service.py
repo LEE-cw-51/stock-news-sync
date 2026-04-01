@@ -2,6 +2,7 @@ import os
 import re
 import json
 import logging
+from pathlib import Path
 from openai import OpenAI, RateLimitError  # [P5 Fix] RateLimitError 타입 임포트
 from dotenv import load_dotenv
 
@@ -10,7 +11,7 @@ try:
 except ModuleNotFoundError:
     from config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -62,6 +63,7 @@ def _parse_json_response(raw: str) -> dict | None:
     """
     LLM 응답에서 JSON 객체를 추출합니다.
     - 코드블록(```json ... ```) 제거 후 json.loads() 시도
+    - 필드 타입 검증·정규화 후 반환 (타입 오류 시 빈 값으로 강제)
     - 실패 시 None 반환 (호출자가 문자열 폴백 처리)
     """
     # 코드블록 제거: ```json ... ``` 또는 ``` ... ```
@@ -69,11 +71,38 @@ def _parse_json_response(raw: str) -> dict | None:
     try:
         parsed = json.loads(cleaned)
         # 필수 키 검증 (신규 3단 구조 또는 구버전 형식 모두 허용)
-        if isinstance(parsed, dict) and "market_reaction" in parsed and (
+        if not (isinstance(parsed, dict) and (
             "bullets" in parsed or "key_event" in parsed
-        ):
-            return parsed
-        return None
+        )):
+            return None
+
+        # [Copilot #4] 필드 타입 정규화 — LLM 오출력으로 인한 프론트 런타임 크래시 방지
+        # list[str] 필드: 잘못된 타입이면 [] 로 강제
+        for list_field in ("bullets", "reference_indicators"):
+            v = parsed.get(list_field)
+            if not isinstance(v, list):
+                parsed[list_field] = []
+            else:
+                parsed[list_field] = [i for i in v if isinstance(i, str)]
+
+        # glossary_terms: {term: str, definition: str} 형식만 통과
+        glossary = parsed.get("glossary_terms")
+        if not isinstance(glossary, list):
+            parsed["glossary_terms"] = []
+        else:
+            parsed["glossary_terms"] = [
+                g for g in glossary
+                if isinstance(g, dict)
+                and isinstance(g.get("term"), str)
+                and isinstance(g.get("definition"), str)
+            ]
+
+        # str 필드: str 아니면 "" 로 강제
+        for str_field in ("key_event", "expected_impact", "trend_insight", "flow_explanation"):
+            if not isinstance(parsed.get(str_field), str):
+                parsed[str_field] = ""
+
+        return parsed
     except (json.JSONDecodeError, ValueError):
         return None
 
@@ -117,10 +146,6 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
       "expected_impact": "주가·시장 예상 영향 1-2문장. 없으면 빈 문자열.",
       "reference_indicators": ["투자자가 확인해야 할 지표1", "지표2", "지표3"],
       "bullets": ["key_event/expected_impact와 겹치지 않는 보조 수치·세부정보 1", "보조정보 2"],
-      "market_reaction": {{
-        "verdict": "호재 또는 악재 또는 중립",
-        "reason": "단기 주가 영향 이유 한 문장"
-      }},
       "trend_insight": "주가 추세 데이터 기반 1-2문장 또는 추세 데이터 없음",
       "glossary_terms": [
         {{"term": "용어명", "definition": "한 줄 정의"}}

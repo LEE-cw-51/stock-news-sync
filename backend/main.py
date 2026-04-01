@@ -4,18 +4,19 @@ import re
 import time
 import logging
 from datetime import datetime
+from pathlib import Path
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-# 1. 경로 설정
+# 1. 경로 설정 (로컬 모듈 import 전 sys.path 확보)
 current_dir = os.path.dirname(os.path.abspath(__file__))
 root_dir = os.path.dirname(current_dir)
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from backend.config.tickers import (
     NAME_MAP, US_CANDIDATES, KR_CANDIDATES,

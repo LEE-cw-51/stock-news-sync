@@ -70,6 +70,9 @@ git branch --list <branch-name>
 # 워크트리 경로 = 브랜치명의 슬래시 뒤 마지막 세그먼트
 # 예: feat/p3-watchlist-ui → .claude/worktrees/p3-watchlist-ui
 git worktree add .claude/worktrees/<last-segment> -b <branch-name>
+
+# 4. env 파일 심볼릭 링크 셋업 (backend/.env + frontend/.env.local)
+bash .claude/scripts/setup-worktree-env.sh .claude/worktrees/<last-segment>
 ```
 
 **출력 형식**:
