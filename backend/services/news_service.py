@@ -8,10 +8,11 @@ from difflib import SequenceMatcher
 from rank_bm25 import BM25Okapi
 from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from tavily import TavilyClient
+from pathlib import Path
 from dotenv import load_dotenv
 
-# .env 파일 로드
-load_dotenv()
+# .env 파일 로드 — __file__ 기준 절대경로 (워크트리 CWD 무관)
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 logger = logging.getLogger(__name__)  # [P6 Fix] logging 모듈 통일
 

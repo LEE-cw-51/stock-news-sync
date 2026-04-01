@@ -3,6 +3,7 @@ import re
 import json
 import logging
 from openai import OpenAI, RateLimitError  # [P5 Fix] RateLimitError 타입 임포트
+from pathlib import Path
 from dotenv import load_dotenv
 
 try:
@@ -10,7 +11,7 @@ try:
 except ModuleNotFoundError:
     from config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
 
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')

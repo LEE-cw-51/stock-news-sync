@@ -14,8 +14,9 @@ root_dir = os.path.dirname(current_dir)
 if root_dir not in sys.path:
     sys.path.append(root_dir)
 
+from pathlib import Path
 from dotenv import load_dotenv
-load_dotenv()
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 from backend.config.tickers import (
     NAME_MAP, US_CANDIDATES, KR_CANDIDATES,
