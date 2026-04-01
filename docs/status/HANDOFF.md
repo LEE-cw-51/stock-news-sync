@@ -1,28 +1,27 @@
 [SESSION_HANDOFF_DATA]
-- Date: 2026-03-27
+- Date: 2026-04-01
 - Last Active Agent: 04 Tech Lead PM (조율·감독) / 02 Backend Cloud (커밋·PR)
 - Completed:
-  1. GitHub Copilot 경로별 커스텀 지침 파일 3개 생성 및 커밋 (PR #14)
-     - .github/copilot-instructions.md (전체 레포 공통 — 한국어·커밋 포맷·보안·Lambda 제약)
-     - .github/instructions/frontend.instructions.md (applyTo: ["frontend/**/*.ts", "frontend/**/*.tsx"])
-     - .github/instructions/backend.instructions.md (applyTo: backend/**/*.py)
-     - Context7 공식 문서 기반 문법 무결성 검증 / QA 전체 통과
-  2. 활성 브랜치 통일
-     - hotfix/ci-supabase-url → claude/dazzling-einstein fast-forward merge (+8커밋 흡수)
-     - PR #14 생성: claude/dazzling-einstein → main (사용자 merge 대기 중)
-     - URL: https://github.com/LEE-cw-51/stock-news-sync/pull/14
-  3. 워크트리 정리
-     - claude/kind-spence 브랜치 삭제 (main과 동일, +0커밋)
-     - git worktree prune 완료
+  1. 브랜치 정리 + main 동기화
+     - fix/p4-lambda-invoke-async, fix/p4-lambda-supabase-crash, feat/dashboard-personalized-news 로컬·원격 삭제
+     - blissful-kapitsa 워크트리 제거
+     - git pull + workspace fast-forward merge 완료
+  2. PR #18 merge — 투자자문업 리스크 대응 sentiment 배지 전체 제거
+     - frontend/components/news/AISummaryCard.tsx: SENTIMENT_STYLES·sentiment 파싱·배지 렌더링 블록 제거
+     - frontend/lib/types.ts: AISummaryStructured.market_reaction 필드 제거
+     - backend/services/ai_service.py: 프롬프트 market_reaction 블록 제거, _parse_json_response 검증 조건 정리
+  3. PR #19 merge — 워크트리 env 자동 셋업 + dotenv 경로 수정 (Copilot 리뷰 4라운드 전부 반영)
+     - backend 3개 파일 load_dotenv() → __file__ 기준 절대경로 (CWD 무관)
+     - PEP 8 import 순서 정리 (stdlib → 3rd party → local)
+     - _parse_json_response 필드 타입 정규화 (bullets·reference_indicators·glossary_terms·str 필드)
+     - .claude/scripts/setup-worktree-env.sh 신규: 워크트리 env symlink 자동 생성 (cp fallback, 유효성 검사, WORKTREE_PATH 기준 REPO_ROOT)
+     - .claude/skills/worktree/SKILL.md: start 서브커맨드에 env 셋업 단계 추가
 
 - Blocker/Issue:
-  - PR #14 사용자 merge 대기 중
-  - claude/workspace 브랜치 hotfix fast-forward 미반영 (dazzling-einstein과 2커밋 차이)
-  - .claude/skills/db-audit/SKILL.md 줄바꿈(LF→CRLF) 변경만 존재 — 실질 변경 없음, 이월
-  - Tavily API 한도 초과 — test_run.py AI 단계 미검증 (이월)
+  - Tavily dev API key (tvly-dev-*) — test_run.py AI 단계 결과 빈 값 반환 (한도 or 필터링)
+  - .claude/settings.local.json 미추적 파일 로컬에 존재 (gitignore 등록 여부 검토)
 
 - Next Action:
-  1. 사용자 PR #14 merge 후 로컬 main pull
-  2. claude/workspace fast-forward merge (origin/main 동기화)
-  3. Tavily API 키 교체 → test_run.py 재실행 → glossary/flow 필드 검증
-  4. Phase 4 착수 (Vercel Analytics + Sentry 도입)
+  1. 세션 시작 시 git pull 관행 확립 → /init 스킬에 pull 단계 추가 검토
+  2. Phase 4 착수 (Vercel Analytics + Sentry 도입)
+  3. Tavily API 키 유효성 확인 → test_run.py AI 단계 전체 통과 검증
