@@ -63,6 +63,7 @@ def _parse_json_response(raw: str) -> dict | None:
     """
     LLM 응답에서 JSON 객체를 추출합니다.
     - 코드블록(```json ... ```) 제거 후 json.loads() 시도
+    - 필드 타입 검증·정규화 후 반환 (타입 오류 시 빈 값으로 강제)
     - 실패 시 None 반환 (호출자가 문자열 폴백 처리)
     """
     # 코드블록 제거: ```json ... ``` 또는 ``` ... ```
@@ -70,11 +71,38 @@ def _parse_json_response(raw: str) -> dict | None:
     try:
         parsed = json.loads(cleaned)
         # 필수 키 검증 (신규 3단 구조 또는 구버전 형식 모두 허용)
-        if isinstance(parsed, dict) and (
+        if not (isinstance(parsed, dict) and (
             "bullets" in parsed or "key_event" in parsed
-        ):
-            return parsed
-        return None
+        )):
+            return None
+
+        # [Copilot #4] 필드 타입 정규화 — LLM 오출력으로 인한 프론트 런타임 크래시 방지
+        # list[str] 필드: 잘못된 타입이면 [] 로 강제
+        for list_field in ("bullets", "reference_indicators"):
+            v = parsed.get(list_field)
+            if not isinstance(v, list):
+                parsed[list_field] = []
+            else:
+                parsed[list_field] = [i for i in v if isinstance(i, str)]
+
+        # glossary_terms: {term: str, definition: str} 형식만 통과
+        glossary = parsed.get("glossary_terms")
+        if not isinstance(glossary, list):
+            parsed["glossary_terms"] = []
+        else:
+            parsed["glossary_terms"] = [
+                g for g in glossary
+                if isinstance(g, dict)
+                and isinstance(g.get("term"), str)
+                and isinstance(g.get("definition"), str)
+            ]
+
+        # str 필드: str 아니면 "" 로 강제
+        for str_field in ("key_event", "expected_impact", "trend_insight", "flow_explanation"):
+            if not isinstance(parsed.get(str_field), str):
+                parsed[str_field] = ""
+
+        return parsed
     except (json.JSONDecodeError, ValueError):
         return None
 

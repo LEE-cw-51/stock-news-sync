@@ -14,7 +14,18 @@
 set -e
 
 WORKTREE_PATH="${1:?[setup-worktree-env] 오류: 워크트리 경로를 인수로 전달하세요. 예: bash .claude/scripts/setup-worktree-env.sh .claude/worktrees/workspace}"
-REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+# [Copilot #1] WORKTREE_PATH 디렉터리 존재 여부 검증
+if [ ! -d "$WORKTREE_PATH" ]; then
+  echo "❌ [setup-worktree-env] 워크트리 경로가 존재하지 않거나 디렉터리가 아닙니다: $WORKTREE_PATH"
+  echo "   예: bash .claude/scripts/setup-worktree-env.sh .claude/worktrees/workspace"
+  exit 1
+fi
+
+# [Copilot #5] 워크트리 내부에서 실행해도 메인 레포 루트를 정확히 참조
+# git-common-dir → 메인 .git 디렉터리 → 그 부모가 메인 레포 루트
+GIT_COMMON_DIR="$(git rev-parse --git-common-dir)"
+REPO_ROOT="$(cd "$GIT_COMMON_DIR/.." && pwd)"
 
 link_or_copy() {
   local src="$1"
@@ -26,12 +37,21 @@ link_or_copy() {
     return
   fi
 
-  if [ -L "$dst" ]; then
-    echo "✅ [$label] 심볼릭 링크 이미 존재: $dst"
-    return
-  fi
+  # [Copilot #2] dst 상위 디렉터리 보장
+  mkdir -p "$(dirname "$dst")"
 
-  if [ -f "$dst" ]; then
+  # [Copilot #3] 심볼릭 링크 존재 시 유효성 검사 (끊어짐 or 잘못된 대상 → 재생성)
+  if [ -L "$dst" ]; then
+    local current_target
+    current_target="$(readlink "$dst" 2>/dev/null || true)"
+    if [ "$current_target" = "$src" ] && [ -f "$dst" ]; then
+      echo "✅ [$label] 유효한 심볼릭 링크 이미 존재: $dst → $src"
+      return
+    else
+      echo "🔄 [$label] 잘못된/끊어진 링크 감지, 재생성: $dst (기존 대상: $current_target)"
+      rm -f "$dst"
+    fi
+  elif [ -f "$dst" ]; then
     echo "✅ [$label] 파일 이미 존재: $dst"
     return
   fi
