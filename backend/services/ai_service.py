@@ -2,8 +2,8 @@ import os
 import re
 import json
 import logging
-from openai import OpenAI, RateLimitError  # [P5 Fix] RateLimitError 타입 임포트
 from pathlib import Path
+from openai import OpenAI, RateLimitError  # [P5 Fix] RateLimitError 타입 임포트
 from dotenv import load_dotenv
 
 try:

@@ -22,10 +22,14 @@ if [ ! -d "$WORKTREE_PATH" ]; then
   exit 1
 fi
 
-# [Copilot #5] 워크트리 내부에서 실행해도 메인 레포 루트를 정확히 참조
-# git-common-dir → 메인 .git 디렉터리 → 그 부모가 메인 레포 루트
-GIT_COMMON_DIR="$(git rev-parse --git-common-dir)"
-REPO_ROOT="$(cd "$GIT_COMMON_DIR/.." && pwd)"
+# [Copilot #5] WORKTREE_PATH 기준으로 git-common-dir 계산
+# → 레포 밖(CWD)에서 실행해도 메인 레포 루트를 정확히 참조
+if ! GIT_COMMON_DIR="$(git -C "$WORKTREE_PATH" rev-parse --git-common-dir 2>/dev/null)"; then
+  echo "❌ [setup-worktree-env] 지정한 워크트리 경로가 Git 레포지토리가 아닙니다: $WORKTREE_PATH"
+  echo "   워크트리 루트 디렉터리를 전달했는지 확인해 주세요."
+  exit 1
+fi
+REPO_ROOT="$(cd "$(git -C "$WORKTREE_PATH" rev-parse --git-common-dir)/.." && pwd)"
 
 link_or_copy() {
   local src="$1"
