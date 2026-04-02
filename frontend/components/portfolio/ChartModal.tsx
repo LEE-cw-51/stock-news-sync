@@ -49,6 +49,7 @@ export default function ChartModal({ stock, onClose }: ChartModalProps) {
             {stock.name} ({stock.symbol})
           </span>
           <button
+            type="button"
             ref={closeButtonRef}
             onClick={onClose}
             className="text-slate-500 hover:text-slate-300 text-xl leading-none"
