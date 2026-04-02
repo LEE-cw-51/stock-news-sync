@@ -179,7 +179,7 @@ export default function NewsFeedSection({
       {/* 뉴스 목록 */}
       <div className="space-y-4">
         <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-          Latest Headlines
+          최신 헤드라인
         </h3>
         {sortedNewsList.length > 0 ? (
           sortedNewsList.map((news) => (

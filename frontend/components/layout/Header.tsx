@@ -24,7 +24,7 @@ export default function Header({ macroList, indexList, user }: HeaderProps) {
         <div className="border-b border-slate-800/50">
           <div className="max-w-7xl mx-auto px-4 h-12 flex items-center gap-6 overflow-x-auto no-scrollbar">
             <div className="flex-shrink-0 flex items-center gap-2 text-indigo-400 font-black text-[11px] border-r border-slate-800 pr-4 uppercase tracking-widest">
-              <Globe size={14} /> Macro
+              <Globe size={14} /> 거시경제
             </div>
             <div className="flex items-center gap-8">
               {macroList.map(([name, val]) => (
@@ -38,7 +38,7 @@ export default function Header({ macroList, indexList, user }: HeaderProps) {
         <div>
           <div className="max-w-7xl mx-auto px-4 h-10 flex items-center gap-6 overflow-x-auto no-scrollbar">
             <div className="flex-shrink-0 flex items-center gap-2 text-slate-500 font-black text-[11px] border-r border-slate-800 pr-4 uppercase tracking-widest">
-              <Activity size={14} /> Market
+              <Activity size={14} /> 시장
             </div>
             <div className="flex items-center gap-6">
               {indexList.map(([name, val]) => (

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { LineChart, Minus, Plus } from "lucide-react";
-import StockChart from "@/components/chart/StockChart";
+import ChartModal from "@/components/portfolio/ChartModal";
 import type { StockData } from "@/lib/types";
 
 interface StockRowProps {
@@ -19,6 +19,7 @@ export default function StockRow({
   onAdd,
 }: StockRowProps) {
   const [chartOpen, setChartOpen] = useState(false);
+  const handleCloseChart = useCallback(() => setChartOpen(false), []);
   const isPositive = stock.change_percent > 0;
   const changeColor = isPositive ? "text-red-400" : "text-blue-400";
 
@@ -73,7 +74,9 @@ export default function StockRow({
             )}
           </div>
         </div>
-        {chartOpen && <StockChart symbol={stock.symbol} />}
+        {chartOpen && (
+          <ChartModal stock={stock} onClose={handleCloseChart} />
+        )}
       </div>
     );
   }
@@ -115,7 +118,9 @@ export default function StockRow({
           </button>
         </div>
       </div>
-      {chartOpen && <StockChart symbol={stock.symbol} />}
+      {chartOpen && (
+        <ChartModal stock={stock} onClose={handleCloseChart} />
+      )}
     </div>
   );
 }

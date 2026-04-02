@@ -1,8 +1,6 @@
 "use client";
 
-interface StockChartProps {
-  symbol: string;
-}
+import { useEffect, useRef, useId } from "react";
 
 function toTradingViewSymbol(symbol: string): string {
   if (symbol.endsWith(".KS") || symbol.endsWith(".KQ")) {
@@ -15,18 +13,68 @@ function toTradingViewSymbol(symbol: string): string {
   return `${exchangeMap[symbol] ?? "NASDAQ"}:${symbol}`;
 }
 
+const SCRIPT_ID = "tradingview-widget-script";
+
+interface StockChartProps { symbol: string; }
+
 export default function StockChart({ symbol }: StockChartProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<TradingViewWidgetInstance | null>(null);
+  const reactId = useId();
+  const containerId = `tv_${symbol.replace(/[^a-zA-Z0-9]/g, "_")}_${reactId.replace(/:/g, "")}`;
   const tvSymbol = toTradingViewSymbol(symbol);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    function initWidget() {
+      if (!isMounted || !containerRef.current || !window.TradingView) return;
+      widgetRef.current = new window.TradingView.widget({
+        autosize: true,
+        symbol: tvSymbol,
+        interval: "D",
+        timezone: "Asia/Seoul",
+        theme: "dark",
+        style: "1",
+        locale: "kr",
+        toolbar_bg: "#020617",
+        hide_top_toolbar: true,
+        hide_side_toolbar: true,
+        withdateranges: true,
+        container_id: containerId,
+      });
+    }
+
+    const cleanup = () => {
+      isMounted = false;
+      widgetRef.current?.remove?.();
+      widgetRef.current = null;
+      if (containerRef.current) containerRef.current.innerHTML = "";
+    };
+
+    if (window.TradingView) {
+      initWidget();
+      return cleanup;
+    }
+
+    const existingScript = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
+    if (existingScript) {
+      existingScript.addEventListener("load", initWidget);
+      return () => { existingScript.removeEventListener("load", initWidget); cleanup(); };
+    }
+
+    const script = document.createElement("script");
+    script.id = SCRIPT_ID;
+    script.src = "https://s3.tradingview.com/tv.js";
+    script.async = true;
+    script.onload = initWidget;
+    document.head.appendChild(script);
+    return cleanup;
+  }, [containerId, tvSymbol]);
+
   return (
     <div className="mt-2 rounded-xl overflow-hidden border border-slate-800">
-      <iframe
-        src={`https://www.tradingview.com/widgetembed/?frameElementId=tv_${symbol}&symbol=${tvSymbol}&interval=D&hidesidetoolbar=1&hidetoptoolbar=1&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&toolbarbg=020617&withdateranges=1`}
-        width="100%"
-        height="220"
-        style={{ border: "none", display: "block" }}
-        title={`${symbol} chart`}
-        referrerPolicy="no-referrer-when-downgrade"
-      />
+      <div id={containerId} ref={containerRef} className="h-[500px]" />
     </div>
   );
 }
