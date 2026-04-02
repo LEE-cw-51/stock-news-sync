@@ -19,6 +19,7 @@ interface StockChartProps { symbol: string; }
 
 export default function StockChart({ symbol }: StockChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const widgetRef = useRef<TradingViewWidgetInstance | null>(null);
   const reactId = useId();
   const containerId = `tv_${symbol.replace(/[^a-zA-Z0-9]/g, "_")}_${reactId.replace(/:/g, "")}`;
   const tvSymbol = toTradingViewSymbol(symbol);
@@ -28,7 +29,7 @@ export default function StockChart({ symbol }: StockChartProps) {
 
     function initWidget() {
       if (!isMounted || !containerRef.current || !window.TradingView) return;
-      new window.TradingView.widget({
+      widgetRef.current = new window.TradingView.widget({
         autosize: true,
         symbol: tvSymbol,
         interval: "D",
@@ -46,6 +47,8 @@ export default function StockChart({ symbol }: StockChartProps) {
 
     const cleanup = () => {
       isMounted = false;
+      widgetRef.current?.remove?.();
+      widgetRef.current = null;
       if (containerRef.current) containerRef.current.innerHTML = "";
     };
 
@@ -71,7 +74,7 @@ export default function StockChart({ symbol }: StockChartProps) {
 
   return (
     <div className="mt-2 rounded-xl overflow-hidden border border-slate-800">
-      <div id={containerId} ref={containerRef} style={{ height: 500 }} />
+      <div id={containerId} ref={containerRef} className="h-[500px]" />
     </div>
   );
 }
