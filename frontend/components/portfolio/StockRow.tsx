@@ -1,9 +1,49 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LineChart, Minus, Plus } from "lucide-react";
 import StockChart from "@/components/chart/StockChart";
 import type { StockData } from "@/lib/types";
+
+function ChartModal({ stock, onClose }: { stock: StockData; onClose: () => void }) {
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={`chart-title-${stock.symbol}`}
+      className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-3xl max-h-[90vh] bg-slate-900 rounded-2xl overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex justify-between items-center px-4 py-3 border-b border-slate-800">
+          <span
+            id={`chart-title-${stock.symbol}`}
+            className="text-sm font-bold text-slate-300"
+          >
+            {stock.name} ({stock.symbol})
+          </span>
+          <button
+            onClick={onClose}
+            className="text-slate-500 hover:text-slate-300 text-xl leading-none"
+            aria-label="차트 닫기"
+          >
+            ×
+          </button>
+        </div>
+        <StockChart symbol={stock.symbol} />
+      </div>
+    </div>
+  );
+}
 
 interface StockRowProps {
   stock: StockData;
@@ -74,27 +114,7 @@ export default function StockRow({
           </div>
         </div>
         {chartOpen && (
-          <div
-            className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4"
-            onClick={() => setChartOpen(false)}
-          >
-            <div
-              className="w-full max-w-3xl bg-slate-900 rounded-2xl overflow-hidden"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center px-4 py-3 border-b border-slate-800">
-                <span className="text-sm font-bold text-slate-300">{stock.name} ({stock.symbol})</span>
-                <button
-                  onClick={() => setChartOpen(false)}
-                  className="text-slate-500 hover:text-slate-300 text-xl leading-none"
-                  aria-label="차트 닫기"
-                >
-                  ×
-                </button>
-              </div>
-              <StockChart symbol={stock.symbol} />
-            </div>
-          </div>
+          <ChartModal stock={stock} onClose={() => setChartOpen(false)} />
         )}
       </div>
     );
@@ -138,27 +158,7 @@ export default function StockRow({
         </div>
       </div>
       {chartOpen && (
-        <div
-          className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4"
-          onClick={() => setChartOpen(false)}
-        >
-          <div
-            className="w-full max-w-3xl bg-slate-900 rounded-2xl overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-between items-center px-4 py-3 border-b border-slate-800">
-              <span className="text-sm font-bold text-slate-300">{stock.name} ({stock.symbol})</span>
-              <button
-                onClick={() => setChartOpen(false)}
-                className="text-slate-500 hover:text-slate-300 text-xl leading-none"
-                aria-label="차트 닫기"
-              >
-                ×
-              </button>
-            </div>
-            <StockChart symbol={stock.symbol} />
-          </div>
-        </div>
+        <ChartModal stock={stock} onClose={() => setChartOpen(false)} />
       )}
     </div>
   );
