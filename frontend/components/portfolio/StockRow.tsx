@@ -73,7 +73,29 @@ export default function StockRow({
             )}
           </div>
         </div>
-        {chartOpen && <StockChart symbol={stock.symbol} />}
+        {chartOpen && (
+          <div
+            className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4"
+            onClick={() => setChartOpen(false)}
+          >
+            <div
+              className="w-full max-w-3xl bg-slate-900 rounded-2xl overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex justify-between items-center px-4 py-3 border-b border-slate-800">
+                <span className="text-sm font-bold text-slate-300">{stock.name} ({stock.symbol})</span>
+                <button
+                  onClick={() => setChartOpen(false)}
+                  className="text-slate-500 hover:text-slate-300 text-xl leading-none"
+                  aria-label="차트 닫기"
+                >
+                  ×
+                </button>
+              </div>
+              <StockChart symbol={stock.symbol} />
+            </div>
+          </div>
+        )}
       </div>
     );
   }
@@ -115,7 +137,29 @@ export default function StockRow({
           </button>
         </div>
       </div>
-      {chartOpen && <StockChart symbol={stock.symbol} />}
+      {chartOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 z-50 flex items-start justify-center pt-20 px-4"
+          onClick={() => setChartOpen(false)}
+        >
+          <div
+            className="w-full max-w-3xl bg-slate-900 rounded-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-center px-4 py-3 border-b border-slate-800">
+              <span className="text-sm font-bold text-slate-300">{stock.name} ({stock.symbol})</span>
+              <button
+                onClick={() => setChartOpen(false)}
+                className="text-slate-500 hover:text-slate-300 text-xl leading-none"
+                aria-label="차트 닫기"
+              >
+                ×
+              </button>
+            </div>
+            <StockChart symbol={stock.symbol} />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

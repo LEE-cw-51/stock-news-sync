@@ -76,19 +76,19 @@ const CATEGORY_STYLES: Record<CategoryType, CategoryStyle> = {
     icon: <Zap size={20} className="fill-indigo-400 text-indigo-400" />,
     gradient: "bg-gradient-to-br from-indigo-900/40 to-slate-950 border-indigo-500/20",
     titleColor: "text-indigo-400",
-    title: "Global Macro Insight",
+    title: "거시경제 인사이트",
   },
   portfolio: {
     icon: <Briefcase size={16} className="text-blue-400" />,
     gradient: "bg-slate-900/80 border-slate-800",
     titleColor: "text-blue-400",
-    title: "Asset Analysis",
+    title: "포트폴리오 분석",
   },
   watchlist: {
     icon: <Star size={16} className="text-emerald-400" />,
     gradient: "bg-slate-900/80 border-slate-800",
     titleColor: "text-emerald-400",
-    title: "Watchlist Trends",
+    title: "관심종목 동향",
   },
 };
 

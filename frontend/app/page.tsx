@@ -197,11 +197,11 @@ export default function Dashboard() {
             {/* 포트폴리오 카드 */}
             <div className="bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-800 shadow-2xl">
               <h2 className="text-xl font-black italic text-blue-400 mb-8 flex items-center gap-2 uppercase tracking-tighter">
-                <Briefcase size={20} /> My Portfolio
+                <Briefcase size={20} /> 내 포트폴리오
               </h2>
               <div className="border-b border-slate-800 pb-6 mb-6">
                 <p className="text-slate-500 text-[10px] uppercase font-bold tracking-widest mb-1">
-                  Total Balance
+                  평가잔고
                 </p>
                 <p className="text-4xl font-black text-white tracking-tighter">
                   ₩ 142,500,000
@@ -218,7 +218,7 @@ export default function Dashboard() {
             <div className="bg-slate-900 rounded-3xl p-6 md:p-8 border border-slate-800">
               <h3 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-6 flex items-center gap-2">
                 <Star size={14} className="text-emerald-500 fill-emerald-500" />
-                Watchlist
+                관심종목
                 {user && (
                   <span className="ml-auto text-[10px] text-slate-600 normal-case font-normal">
                     내 관심종목

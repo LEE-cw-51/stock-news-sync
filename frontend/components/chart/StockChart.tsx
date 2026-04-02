@@ -20,9 +20,9 @@ export default function StockChart({ symbol }: StockChartProps) {
   return (
     <div className="mt-2 rounded-xl overflow-hidden border border-slate-800">
       <iframe
-        src={`https://www.tradingview.com/widgetembed/?frameElementId=tv_${symbol}&symbol=${tvSymbol}&interval=D&hidesidetoolbar=1&hidetoptoolbar=1&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&toolbarbg=020617&withdateranges=1`}
+        src={`https://www.tradingview.com/widgetembed/?frameElementId=tv_${symbol}&symbol=${encodeURIComponent(tvSymbol)}&interval=D&hidesidetoolbar=1&hidetoptoolbar=1&theme=dark&style=1&timezone=Asia%2FSeoul&locale=kr&toolbarbg=020617&withdateranges=1`}
         width="100%"
-        height="220"
+        height="500"
         style={{ border: "none", display: "block" }}
         title={`${symbol} chart`}
         referrerPolicy="no-referrer-when-downgrade"
