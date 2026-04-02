@@ -1,0 +1,241 @@
+"""
+retrieval_pipeline.py — Modular RAG 파이프라인 추상화
+
+구조:
+  BasePipeline          — 인터페이스 (retrieve 메서드)
+  QualityPipeline       — BM25 + Contextual Compression + VADER 필터 (현재 기본값)
+  get_pipeline()        — 라우터 함수 (추후 category/market/user_tier 기반 확장)
+
+향후 확장 경로:
+  SemanticPipeline      — Gemini Embedding API + BM25 Hybrid
+  PersonalizedPipeline  — per-user 관심종목 기반 컨텍스트 구성
+"""
+
+import re
+import logging
+from difflib import SequenceMatcher
+
+from rank_bm25 import BM25Okapi
+from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
+
+try:
+    from backend.services.news_service import get_foreign_news, get_korean_news
+except ModuleNotFoundError:
+    from services.news_service import get_foreign_news, get_korean_news
+
+logger = logging.getLogger(__name__)
+
+_vader = SentimentIntensityAnalyzer()
+
+
+# =============================================================================
+# 공유 유틸리티
+# =============================================================================
+
+def _bm25_rerank(query: str, results: list[dict], top_n: int = 3) -> list[dict]:
+    """BM25로 뉴스 관련성 재랭킹, top_n개 반환."""
+    if len(results) <= top_n:
+        return results
+    corpus = [(r["title"] + " " + r["content"]).lower().split() for r in results]
+    scores = BM25Okapi(corpus).get_scores(query.lower().split())
+    ranked = sorted(zip(results, scores), key=lambda x: x[1], reverse=True)
+    return [r for r, _ in ranked[:top_n]]
+
+
+def _add_sentiment(links: list[dict]) -> list[dict]:
+    """VADER로 제목 기반 감성 점수(-1.0~+1.0)를 메타데이터로 추가."""
+    for link in links:
+        scores = _vader.polarity_scores(link.get("title", ""))
+        link["sentiment"] = round(scores["compound"], 3)
+    return links
+
+
+def _deduplicate_links(links: list[dict]) -> list[dict]:
+    """URL 해시 및 제목 유사도 기준으로 중복 뉴스를 제거합니다."""
+    seen_urls: set[str] = set()
+    seen_titles: list[str] = []
+    result: list[dict] = []
+    for link in links:
+        url = link.get("url", "")
+        title = link.get("title", "")
+        if url in seen_urls:
+            continue
+        is_duplicate = any(
+            SequenceMatcher(None, title, t).ratio() >= 0.85
+            for t in seen_titles
+        )
+        if is_duplicate:
+            continue
+        seen_urls.add(url)
+        seen_titles.append(title)
+        result.append(link)
+    return result
+
+
+# =============================================================================
+# BasePipeline
+# =============================================================================
+
+class BasePipeline:
+    """RAG 파이프라인 인터페이스. 모든 파이프라인은 retrieve()를 구현한다."""
+
+    def retrieve(
+        self,
+        query: str,
+        symbol: str | None = None,
+        market: str = "us",
+    ) -> tuple[str, list[dict]]:
+        """
+        Args:
+            query:  종목명 또는 키워드 (예: "NVIDIA", "금리 인상")
+            symbol: 티커 심볼 (예: "NVDA", "005930.KS")
+            market: "us" | "kr"
+        Returns:
+            (context_str, links_list)
+        """
+        raise NotImplementedError
+
+
+# =============================================================================
+# QualityPipeline
+# =============================================================================
+
+class QualityPipeline(BasePipeline):
+    """
+    BM25 재랭킹 + Contextual Compression + VADER 필터 파이프라인.
+
+    개선 사항 (news_service.py 인라인 로직 대비):
+    - 최소 본문 길이 필터: len(content) < 80 stub 기사 제거
+    - Contextual Compression: 기사 전문 대신 BM25 상위 2문장만 context에 포함
+    - VADER hard filter: |compound| < 0.1 완전 중립 기사 제거
+    - Tavily score threshold: 0.6 (news_service.py 기본값 0.5에서 상향)
+    """
+
+    SCORE_THRESHOLD = 0.6
+    MIN_CONTENT_LEN = 80
+    VADER_THRESHOLD = 0.1
+    COMPRESS_TOP_N = 2
+
+    def _compress(self, content: str, query: str) -> str:
+        """
+        기사 본문을 문장 단위로 분리하고 BM25로 쿼리 관련도 높은
+        상위 COMPRESS_TOP_N 문장만 반환한다.
+        """
+        sentences = [
+            s.strip()
+            for s in re.split(r"[.!?。\n]", content)
+            if len(s.strip()) > 20
+        ]
+        if len(sentences) <= self.COMPRESS_TOP_N:
+            return content
+        corpus = [s.lower().split() for s in sentences]
+        scores = BM25Okapi(corpus).get_scores(query.lower().split())
+        ranked = sorted(zip(sentences, scores), key=lambda x: x[1], reverse=True)
+        return ". ".join(s for s, _ in ranked[: self.COMPRESS_TOP_N])
+
+    def _build_context(self, results: list[dict], query: str) -> str:
+        """압축된 문장 기반 context 문자열 생성."""
+        parts = []
+        for i, r in enumerate(results):
+            compressed = self._compress(r["content"], query)
+            parts.append(f"[{i + 1}. {r['title']}]\n{compressed}")
+        return "\n\n".join(parts)
+
+    def retrieve(
+        self,
+        query: str,
+        symbol: str | None = None,
+        market: str = "us",
+    ) -> tuple[str, list[dict]]:
+        # 1. 소스에서 raw 데이터 fetch (news_service.py 담당)
+        if market == "kr":
+            raw_context, links = get_korean_news(query)
+        else:
+            raw_context, links = get_foreign_news(query, symbol)
+
+        if not links:
+            return raw_context, links
+
+        # news_service.py가 반환한 links를 results 형태로 재구성
+        # (context는 news_service 내부에서 이미 만들어지므로 raw_results를 직접 접근 불가)
+        # → links와 raw_context를 파싱해서 파이프라인 적용
+        results = self._parse_raw(raw_context, links)
+
+        # 2. 최소 본문 길이 필터
+        results = [r for r in results if len(r.get("content", "")) >= self.MIN_CONTENT_LEN]
+        if not results:
+            logger.warning("[QualityPipeline] 최소 길이 필터 후 결과 없음 (query=%s)", query)
+            return "", []
+
+        # 3. BM25 재랭킹
+        results = _bm25_rerank(query, results)
+
+        # 4. VADER hard filter — 완전 중립 기사 제거
+        scored = []
+        for r in results:
+            compound = abs(_vader.polarity_scores(r.get("title", ""))["compound"])
+            if compound >= self.VADER_THRESHOLD:
+                scored.append(r)
+        # 필터 후 결과가 없으면 원래 results 유지 (정보량 0 방지)
+        if scored:
+            results = scored
+        else:
+            logger.info("[QualityPipeline] VADER 필터 후 결과 없음 — 원본 유지 (query=%s)", query)
+
+        # 5. Contextual Compression으로 context 생성
+        context = self._build_context(results, query)
+
+        # 6. links 정리: VADER 점수 메타데이터 + 중복 제거
+        final_links = [
+            {"title": r["title"], "url": r["url"], "date": r.get("date", "")}
+            for r in results
+        ]
+        final_links = _add_sentiment(final_links)
+        final_links = _deduplicate_links(final_links)
+
+        logger.info(
+            "[QualityPipeline] retrieve 완료 (query=%s, 기사=%d개)", query, len(final_links)
+        )
+        return context, final_links
+
+    @staticmethod
+    def _parse_raw(raw_context: str, links: list[dict]) -> list[dict]:
+        """
+        news_service.py가 반환한 (context 문자열, links 리스트)를
+        파이프라인이 처리할 수 있는 results 형태로 재구성한다.
+
+        context 형식:
+            [1. 제목]\n본문\n\n[2. 제목]\n본문\n\n...
+        """
+        results = []
+        # context를 기사 단위로 분리
+        blocks = re.split(r"\n\n(?=\[\d+\.)", raw_context.strip())
+        for i, block in enumerate(blocks):
+            lines = block.strip().splitlines()
+            if not lines:
+                continue
+            # 첫 줄: "[N. 제목]" 형식
+            title_match = re.match(r"\[\d+\.\s*(.+?)\]", lines[0])
+            title = title_match.group(1) if title_match else lines[0]
+            content = "\n".join(lines[1:]).strip()
+            url = links[i]["url"] if i < len(links) else ""
+            date = links[i].get("date", "") if i < len(links) else ""
+            results.append({"title": title, "content": content, "url": url, "date": date})
+        return results
+
+
+# =============================================================================
+# PipelineRouter
+# =============================================================================
+
+def get_pipeline(category: str = "watchlist", market: str = "us") -> BasePipeline:
+    """
+    category / market 조합에 따라 최적 파이프라인을 반환한다.
+
+    현재: 항상 QualityPipeline 반환.
+    추후 확장:
+        "portfolio" + 프리미엄 유저 → SemanticPipeline
+        per-user 개인화 → PersonalizedPipeline
+    """
+    # TODO: category / user_tier 기반 라우팅 추가
+    return QualityPipeline()

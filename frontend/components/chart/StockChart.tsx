@@ -29,27 +29,32 @@ export default function StockChart({ symbol }: StockChartProps) {
 
     function initWidget() {
       if (!isMounted || !containerRef.current || !window.TradingView) return;
-      widgetRef.current = new window.TradingView.widget({
-        autosize: true,
-        symbol: tvSymbol,
-        interval: "D",
-        timezone: "Asia/Seoul",
-        theme: "dark",
-        style: "1",
-        locale: "kr",
-        toolbar_bg: "#020617",
-        hide_top_toolbar: true,
-        hide_side_toolbar: true,
-        withdateranges: true,
-        container_id: containerId,
-      });
+      try {
+        widgetRef.current = new window.TradingView.widget({
+          autosize: true,
+          symbol: tvSymbol,
+          interval: "D",
+          timezone: "Asia/Seoul",
+          theme: "dark",
+          style: "1",
+          locale: "kr",
+          toolbar_bg: "#020617",
+          hide_top_toolbar: true,
+          hide_side_toolbar: true,
+          withdateranges: true,
+          container_id: containerId,
+        });
+      } catch (e) {
+        console.warn("[StockChart] TradingView widget 초기화 실패:", e);
+      }
     }
 
     const cleanup = () => {
       isMounted = false;
       widgetRef.current?.remove?.();
       widgetRef.current = null;
-      if (containerRef.current) containerRef.current.innerHTML = "";
+      // innerHTML 강제 초기화 제거 — remove()가 내부 DOM 정리 담당
+      // (강제 제거 시 위젯 내부 async 콜백이 제거된 DOM에 접근해 unhandled exception 발생)
     };
 
     if (window.TradingView) {
