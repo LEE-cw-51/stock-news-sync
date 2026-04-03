@@ -51,10 +51,14 @@ export default function StockChart({ symbol }: StockChartProps) {
 
     const cleanup = () => {
       isMounted = false;
-      widgetRef.current?.remove?.();
+      if (typeof widgetRef.current?.remove === "function") {
+        // remove()가 있으면 TradingView 내부 async 정리 위임
+        widgetRef.current.remove();
+      } else if (containerRef.current) {
+        // remove() 미지원 시(초기화 미완료 등) 자식 노드만 제한적으로 제거
+        containerRef.current.replaceChildren();
+      }
       widgetRef.current = null;
-      // innerHTML 강제 초기화 제거 — remove()가 내부 DOM 정리 담당
-      // (강제 제거 시 위젯 내부 async 콜백이 제거된 DOM에 접근해 unhandled exception 발생)
     };
 
     if (window.TradingView) {

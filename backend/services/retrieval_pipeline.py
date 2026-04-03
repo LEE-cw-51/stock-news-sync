@@ -148,7 +148,9 @@ class QualityPipeline(BasePipeline):
         if market == "kr":
             raw_context, links, results = get_korean_news(query, build_context=False)
         else:
-            raw_context, links, results = get_foreign_news(query, symbol, build_context=False)
+            raw_context, links, results = get_foreign_news(
+                query, symbol=symbol, build_context=False
+            )
 
         if not links:
             return raw_context, links
@@ -216,10 +218,15 @@ def get_pipeline(category: str = "watchlist", market: str = "us") -> BasePipelin
     """
     category / market 조합에 따라 최적 파이프라인을 반환한다.
 
-    현재: 항상 QualityPipeline 반환.
+    현재: 모든 조합에 대해 QualityPipeline을 기본 파이프라인으로 사용한다.
     추후 확장:
         "portfolio" + 프리미엄 유저 → SemanticPipeline
         per-user 개인화 → PersonalizedPipeline
     """
-    # TODO: category / user_tier 기반 라우팅 추가
+    # TODO: category / user_tier 기반 라우팅 추가 (SemanticPipeline, PersonalizedPipeline)
+    logger.info(
+        "[get_pipeline] category=%s, market=%s — 전용 라우팅 미구현, QualityPipeline 사용",
+        category,
+        market,
+    )
     return QualityPipeline()
