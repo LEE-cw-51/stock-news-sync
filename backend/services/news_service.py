@@ -1,95 +1,84 @@
+"""
+news_service.py — 뉴스 소스별 fetch 함수 모음
+
+각 함수는 뉴스 소스별 raw 데이터를 가져온 뒤 최소한의 정제만 수행하여
+(context_str, links_list, results_list) 형태로 반환한다.
+  - Tavily: score 기반 프리필터링(≥0.5)
+  - 그 외 소스: HTML 태그 제거·포맷 정규화만 수행
+
+관련성 재랭킹(BM25)·Contextual Compression·VADER 필터·중복 제거 등
+전체 파이프라인 오케스트레이션은 retrieval_pipeline.py에서 단일 책임으로 담당한다.
+
+Fallback 체인:
+  해외(US): get_foreign_news() → Tavily → Yahoo RSS → GDELT
+  국내(KR): get_korean_news()  → Naver  → Google RSS → GDELT
+"""
+
 import os
 import re
 import logging
 import xml.etree.ElementTree as ET
-from difflib import SequenceMatcher
 from pathlib import Path
 from urllib.parse import quote_plus, quote
 import requests
-from rank_bm25 import BM25Okapi
-from vaderSentiment.vaderSentiment import SentimentIntensityAnalyzer
 from tavily import TavilyClient
 from dotenv import load_dotenv
 
 # .env 파일 로드 — __file__ 기준 절대경로 (워크트리 CWD 무관)
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
-logger = logging.getLogger(__name__)  # [P6 Fix] logging 모듈 통일
+logger = logging.getLogger(__name__)
 
 # 모듈 레벨 초기화 — Lambda warm start 시 재사용
 tavily_key = os.getenv("TAVILY_API_KEY")
 tavily = TavilyClient(api_key=tavily_key) if tavily_key else None
-_vader = SentimentIntensityAnalyzer()
+
+_html_tag_re = re.compile(r'<[^>]+>')
 
 
-def _bm25_rerank(query: str, results: list[dict], top_n: int = 3) -> list[dict]:
-    """BM25로 뉴스 관련성 재랭킹, top_n개 반환."""
-    if len(results) <= top_n:
-        return results
-    corpus = [(r['title'] + ' ' + r['content']).lower().split() for r in results]
-    scores = BM25Okapi(corpus).get_scores(query.lower().split())
-    ranked = sorted(zip(results, scores), key=lambda x: x[1], reverse=True)
-    return [r for r, _ in ranked[:top_n]]
+def _build_raw_output(
+    results: list[dict],
+    build_context: bool = True,
+) -> tuple[str, list[dict], list[dict]]:
+    """results 리스트로부터 (context 문자열, links 리스트, results 리스트)를 생성한다.
+
+    build_context=False 시 context 문자열 생성을 생략한다.
+    retrieval_pipeline 경유 시에는 파이프라인이 압축 context를 직접 생성하므로
+    raw context 빌드가 불필요하다.
+    """
+    context = (
+        "\n\n".join([
+            f"[{i+1}. {r['title']}]\n{r['content']}"
+            for i, r in enumerate(results)
+        ])
+        if build_context else ""
+    )
+    links = [
+        {"title": r['title'], "url": r['url'], "date": r.get('published_date', '')}
+        for r in results
+    ]
+    return context, links, results
 
 
-def _add_sentiment(links: list[dict]) -> list[dict]:
-    """VADER로 제목 기반 감성 점수(-1.0~+1.0)를 메타데이터로 추가."""
-    for link in links:
-        scores = _vader.polarity_scores(link.get('title', ''))
-        link['sentiment'] = round(scores['compound'], 3)
-    return links
-
-
-def _deduplicate_links(links: list[dict]) -> list[dict]:
-    """URL 해시 및 제목 유사도 기준으로 중복 뉴스를 제거합니다."""
-    seen_urls: set[str] = set()
-    seen_titles: list[str] = []
-    result: list[dict] = []
-
-    for link in links:
-        url = link.get("url", "")
-        title = link.get("title", "")
-
-        # URL 중복 제거
-        if url in seen_urls:
-            continue
-
-        # 제목 유사도 중복 제거 (0.85 이상이면 동일 기사로 판단)
-        is_duplicate = any(
-            SequenceMatcher(None, title, t).ratio() >= 0.85
-            for t in seen_titles
-        )
-        if is_duplicate:
-            continue
-
-        seen_urls.add(url)
-        seen_titles.append(title)
-        result.append(link)
-
-    return result
-
-
-def get_tavily_news(query: str) -> tuple[str, list[dict]]:  # [P7 Fix] 타입 힌트 추가
+def get_tavily_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Tavily를 이용해 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인:
-    Tavily(max=5, days=1) → score≥0.5 필터 → BM25 재랭킹(top-3)
-    → context/links 생성 → VADER 감성 추가 → dedup → 반환
+    파이프라인: Tavily(max=5, days=1) → score≥0.5 프리필터
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     if not tavily:
-        logger.error("TAVILY_API_KEY가 없습니다.")  # [P6 Fix] print → logger.error
-        return "", []
+        logger.error("TAVILY_API_KEY가 없습니다.")
+        return "", [], []
 
-    logger.info("Tavily 검색 시작: %s", query)  # [P6 Fix] print → logger.info
+    logger.info("Tavily 검색 시작: %s", query)
 
     try:
-        # topic="news" + days=1로 최신 24시간 뉴스만 수집
         try:
             response = tavily.search(
                 query=f"{query} 주가 전망 및 최신 뉴스",
                 topic="news",
-                max_results=5,  # score 필터 후 최종 3개 선택을 위해 여유있게 수집
+                max_results=5,
                 days=1,
                 include_answer=False,
                 include_raw_content=False
@@ -106,53 +95,28 @@ def get_tavily_news(query: str) -> tuple[str, list[dict]]:  # [P7 Fix] 타입 �
 
         results = response.get('results', [])
 
-        # score 기준 관련성 필터링 (0.5 미만 제거)
+        # score 기준 관련성 프리필터링
         results = [r for r in results if r.get('score', 0) >= 0.5]
 
-        # BM25 재랭킹 — 쿼리 키워드 기준 관련성 높은 top-3 선택
-        results = _bm25_rerank(query, results)
-
-        # 1. AI에게 먹여줄 '본문 덩어리' (Context) 만들기
-        context = "\n\n".join([
-            f"[{i+1}. {r['title']}]\n{r['content']}"
-            for i, r in enumerate(results)
-        ])
-
-        # 2. 프론트엔드에 보여줄 '링크 리스트' 만들기
-        links = [
-            {"title": r['title'], "url": r['url'], "date": r.get('published_date', '')}
-            for r in results
-        ]
-
-        # VADER 감성 점수 메타데이터 추가 (하드 필터로 사용하지 않음)
-        links = _add_sentiment(links)
-
-        # 중복 제거 (URL + 제목 유사도 기준)
-        links = _deduplicate_links(links)
-
-        return context, links
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
-        logger.warning("Tavily 검색 실패 (%s): %s", query, e)  # [P6 Fix] print → logger.warning
-        return "", []
+        logger.warning("Tavily 검색 실패 (%s): %s", query, e)
+        return "", [], []
 
 
-_html_tag_re = re.compile(r'<[^>]+>')
-
-
-def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
+def get_naver_news(query: str, display: int = 5, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Naver News API를 이용해 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인:
-    Naver Search API(display=5, sort=date) → HTML 태그 제거 → BM25 재랭킹(top-3)
-    → context/links 생성 → VADER 감성 추가 → dedup → 반환
+    파이프라인: Naver Search API(display=5, sort=date) → HTML 태그 제거
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     client_id = os.getenv("NAVER_CLIENT_ID", "")
     client_secret = os.getenv("NAVER_CLIENT_SECRET", "")
     if not client_id or not client_secret:
         logger.warning("NAVER_CLIENT_ID/SECRET 미설정 — 네이버 뉴스 스킵")
-        return "", []
+        return "", [], []
 
     logger.info("Naver 뉴스 검색 시작: %s", query)
 
@@ -169,7 +133,6 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
         resp.raise_for_status()
         items = resp.json().get("items", [])
 
-        # 네이버 API 응답에 포함된 HTML 태그 제거 (예: <b>삼성전자</b>)
         results = [
             {
                 "title": _html_tag_re.sub("", item.get("title", "")),
@@ -180,38 +143,19 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
             for item in items
         ]
 
-        # BM25 재랭킹
-        results = _bm25_rerank(query, results)
-
-        context = "\n\n".join([
-            f"[{i+1}. {r['title']}]\n{r['content']}"
-            for i, r in enumerate(results)
-        ])
-
-        links = [
-            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
-            for r in results
-        ]
-
-        links = _add_sentiment(links)
-        links = _deduplicate_links(links)
-
-        return context, links
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("Naver 뉴스 검색 실패 (%s): %s", query, e)
-        return "", []
+        return "", [], []
 
 
-def get_yahoo_rss_news(query: str, symbol=None):
+def get_yahoo_rss_news(query: str, symbol: str | None = None, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Yahoo Finance RSS 피드에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인:
-    Yahoo RSS(symbol or ^GSPC) → XML 파싱 → BM25 재랭킹(top-3)
-    → context/links 생성 → VADER 감성 추가 → dedup → 반환
-
-    실패 시 logger.warning 후 ("", []) 반환.
+    파이프라인: Yahoo RSS(symbol or ^GSPC) → XML 파싱
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     ticker = symbol if symbol else "^GSPC"
     url = (
@@ -232,17 +176,15 @@ def get_yahoo_rss_news(query: str, symbol=None):
         channel = root.find("channel")
         if channel is None:
             logger.warning("Yahoo RSS: channel 요소 없음 (symbol=%s)", ticker)
-            return "", []
+            return "", [], []
 
         results = []
         for item in channel.findall("item"):
             title = item.findtext("title") or ""
-            # RSS 2.0의 <link> 태그는 ET.findtext로 읽히지 않아 .tail로 읽어야 함
             link_el = item.find("link")
             item_url = (link_el.text or "").strip() if link_el is not None else ""
             description = item.findtext("description") or ""
             pub_date = item.findtext("pubDate") or ""
-
             results.append({
                 "title": title,
                 "content": description,
@@ -252,39 +194,21 @@ def get_yahoo_rss_news(query: str, symbol=None):
 
         if not results:
             logger.warning("Yahoo RSS: 결과 없음 (symbol=%s)", ticker)
-            return "", []
+            return "", [], []
 
-        results = _bm25_rerank(query, results)
-
-        context = "\n\n".join([
-            f"[{i+1}. {r['title']}]\n{r['content']}"
-            for i, r in enumerate(results)
-        ])
-
-        links = [
-            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
-            for r in results
-        ]
-
-        links = _add_sentiment(links)
-        links = _deduplicate_links(links)
-
-        return context, links
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("Yahoo RSS 검색 실패 (%s, symbol=%s): %s", query, ticker, e)
-        return "", []
+        return "", [], []
 
 
-def get_google_rss_news(query: str):
+def get_google_rss_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Google News RSS에서 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인:
-    Google RSS(hl=ko&gl=KR) → XML 파싱 → HTML 태그 제거 → BM25 재랭킹(top-3)
-    → context/links 생성 → VADER 감성 추가 → dedup → 반환
-
-    실패 시 ("", []) 반환.
+    파이프라인: Google RSS(hl=ko&gl=KR) → XML 파싱 → HTML 태그 제거
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     url = (
         f"https://news.google.com/rss/search"
@@ -301,17 +225,15 @@ def get_google_rss_news(query: str):
         channel = root.find("channel")
         if channel is None:
             logger.warning("Google RSS: channel 요소 없음 (query=%s)", query)
-            return "", []
+            return "", [], []
 
         results = []
         for item in channel.findall("item"):
             title = _html_tag_re.sub("", item.findtext("title") or "")
-            # Google RSS <link>는 리다이렉트 URL이지만 그대로 저장
             link_el = item.find("link")
             item_url = (link_el.text or "").strip() if link_el is not None else ""
             description = _html_tag_re.sub("", item.findtext("description") or "")
             pub_date = item.findtext("pubDate") or ""
-
             results.append({
                 "title": title,
                 "content": description,
@@ -321,39 +243,21 @@ def get_google_rss_news(query: str):
 
         if not results:
             logger.warning("Google RSS: 결과 없음 (query=%s)", query)
-            return "", []
+            return "", [], []
 
-        results = _bm25_rerank(query, results)
-
-        context = "\n\n".join([
-            f"[{i+1}. {r['title']}]\n{r['content']}"
-            for i, r in enumerate(results)
-        ])
-
-        links = [
-            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
-            for r in results
-        ]
-
-        links = _add_sentiment(links)
-        links = _deduplicate_links(links)
-
-        return context, links
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("Google RSS 검색 실패 (%s): %s", query, e)
-        return "", []
+        return "", [], []
 
 
-def get_gdelt_news(query: str):
+def get_gdelt_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     GDELT v2 Doc API에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인:
-    GDELT artlist(maxrecords=10) → BM25 재랭킹(top-3)
-    → context/links 생성 → VADER 감성 추가 → dedup → 반환
-
-    실패 시 ("", []) 반환.
+    파이프라인: GDELT artlist(maxrecords=10) — 본문 미제공으로 title을 content로 사용
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     url = (
         f'https://api.gdeltproject.org/api/v2/doc/doc'
@@ -372,11 +276,10 @@ def get_gdelt_news(query: str):
         articles = data.get("articles") or []
         if not articles:
             logger.warning("GDELT: 결과 없음 (query=%s)", query)
-            return "", []
+            return "", [], []
 
         results = []
         for article in articles:
-            # seendate 형식: "20230101T000000Z" → "2023-01-01"
             raw_date = article.get("seendate", "")
             try:
                 date_str = (
@@ -394,53 +297,42 @@ def get_gdelt_news(query: str):
                 "published_date": date_str,
             })
 
-        results = _bm25_rerank(query, results)
-
-        context = "\n\n".join([
-            f"[{i+1}. {r['title']}]\n{r['content']}"
-            for i, r in enumerate(results)
-        ])
-
-        links = [
-            {"title": r["title"], "url": r["url"], "date": r.get("published_date", "")}
-            for r in results
-        ]
-
-        links = _add_sentiment(links)
-        links = _deduplicate_links(links)
-
-        return context, links
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("GDELT 검색 실패 (%s): %s", query, e)
-        return "", []
+        return "", [], []
 
 
-def get_foreign_news(query: str, symbol=None):
+def get_foreign_news(
+    query: str,
+    symbol: str | None = None,
+    build_context: bool = True,
+) -> tuple[str, list[dict], list[dict]]:
     """
     해외 뉴스 Fallback 체인: Tavily → Yahoo RSS → GDELT
 
     각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
     """
-    context, links = get_tavily_news(query)
+    context, links, results = get_tavily_news(query, build_context=build_context)
     if links:
-        return context, links
-    context, links = get_yahoo_rss_news(query, symbol)
+        return context, links, results
+    context, links, results = get_yahoo_rss_news(query, symbol, build_context=build_context)
     if links:
-        return context, links
-    return get_gdelt_news(query)
+        return context, links, results
+    return get_gdelt_news(query, build_context=build_context)
 
 
-def get_korean_news(query: str):
+def get_korean_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     한국어 뉴스 Fallback 체인: Naver → Google RSS → GDELT
 
     각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
     """
-    context, links = get_naver_news(query)
+    context, links, results = get_naver_news(query, build_context=build_context)
     if links:
-        return context, links
-    context, links = get_google_rss_news(query)
+        return context, links, results
+    context, links, results = get_google_rss_news(query, build_context=build_context)
     if links:
-        return context, links
-    return get_gdelt_news(query)
+        return context, links, results
+    return get_gdelt_news(query, build_context=build_context)
