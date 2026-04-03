@@ -13,6 +13,7 @@ retrieval_pipeline.py — Modular RAG 파이프라인 추상화
 
 import re
 import logging
+from abc import ABC, abstractmethod
 from difflib import SequenceMatcher
 
 from rank_bm25 import BM25Okapi
@@ -80,9 +81,10 @@ def _deduplicate(items: list[dict]) -> list[dict]:
 # BasePipeline
 # =============================================================================
 
-class BasePipeline:
+class BasePipeline(ABC):
     """RAG 파이프라인 인터페이스. 모든 파이프라인은 retrieve()를 구현한다."""
 
+    @abstractmethod
     def retrieve(
         self,
         query: str,
@@ -97,7 +99,6 @@ class BasePipeline:
         Returns:
             (context_str, links_list)
         """
-        raise NotImplementedError
 
 
 # =============================================================================
