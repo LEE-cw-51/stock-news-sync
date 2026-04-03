@@ -30,13 +30,25 @@ export default function StockChart({ symbol }: StockChartProps) {
     // TradingView 내부 async 에러 억제 — remove() 후에도 async 정리가 이어지다
     // parentNode가 null인 DOM 요소에 접근하는 Uncaught TypeError가 발생하는데,
     // 이 에러가 앱 전체를 크래시시키는 것을 방지한다.
+    // 조건을 parentNode null TypeError로 좁혀 다른 TradingView 에러는 계속 관측 가능하게 유지.
     const suppressTVError = (event: ErrorEvent) => {
       const isTVOrigin =
         event.filename?.includes("tv.js") ||
         event.filename?.includes("tradingview");
-      if (isTVOrigin) {
-        event.preventDefault(); // Uncaught 처리 억제 → 앱 크래시 방지
-        console.warn("[StockChart] TradingView 내부 에러 억제:", event.message);
+      const errorMessage =
+        event.error instanceof Error ? event.error.message : "";
+      const messageCandidates = [event.message, errorMessage].filter(
+        (m): m is string => m.length > 0,
+      );
+      const isKnownParentNodeNullError = messageCandidates.some(
+        (m) =>
+          m.includes("parentNode") &&
+          (m.includes("null") || m.includes("Null")) &&
+          m.includes("TypeError"),
+      );
+      if (isTVOrigin && isKnownParentNodeNullError) {
+        event.preventDefault(); // 알려진 정리 단계 에러만 억제 → 앱 크래시 방지
+        console.warn("[StockChart] TradingView 내부 parentNode 에러 억제:", event.message);
       }
     };
     window.addEventListener("error", suppressTVError);
