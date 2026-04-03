@@ -92,10 +92,15 @@ def run_sync_engine_once():
     frontend_feed = { "portfolio": [], "watchlist": [], "macro": [] }
     ai_contexts = { "macro": "", "portfolio": "", "watchlist": "" }
 
+    # 파이프라인 인스턴스를 루프 밖에서 1회 생성하여 재사용
+    macro_us_pipeline = get_pipeline("macro", "us")
+    macro_kr_pipeline = get_pipeline("macro", "kr")
+    pipeline_cache: dict[tuple[str, str], object] = {}
+
     # 1. 거시경제 뉴스 (영문 — Tavily)
     for keyword in MACRO_KEYWORDS:
         try:  # [P4 Fix] 개별 키워드 뉴스 수집 실패 시 전체 중단 방지 (종목 뉴스와 동일 패턴)
-            context, links = get_pipeline("macro", "us").retrieve(keyword)
+            context, links = macro_us_pipeline.retrieve(keyword)
             if context:
                 ai_contexts["macro"] += f"\n[Keyword: {keyword}]\n{context}\n"
                 for item in links:
@@ -114,7 +119,7 @@ def run_sync_engine_once():
     # 1-2. 한국 거시경제 뉴스 (한국어 — Naver)
     for keyword in KR_MACRO_KEYWORDS:
         try:
-            context, links = get_pipeline("macro", "kr").retrieve(keyword, market="kr")
+            context, links = macro_kr_pipeline.retrieve(keyword, market="kr")
             if context:
                 ai_contexts["macro"] += f"\n[한국 거시: {keyword}]\n{context}\n"
                 for item in links:
@@ -161,7 +166,10 @@ def run_sync_engine_once():
                 else:
                     market = "us"
                     query = info['name']
-                context, links = get_pipeline(category, market).retrieve(query, symbol=symbol, market=market)
+                pipeline = pipeline_cache.setdefault(
+                    (category, market), get_pipeline(category, market)
+                )
+                context, links = pipeline.retrieve(query, symbol=symbol, market=market)
                 if context:
                     ai_contexts[category] += f"\n[{info['name']}]\n{context}\n"
                     for link_data in links:

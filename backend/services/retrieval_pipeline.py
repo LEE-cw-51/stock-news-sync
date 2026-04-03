@@ -50,25 +50,29 @@ def _add_sentiment(links: list[dict]) -> list[dict]:
     return links
 
 
-def _deduplicate_links(links: list[dict]) -> list[dict]:
-    """URL 해시 및 제목 유사도 기준으로 중복 뉴스를 제거합니다."""
+def _deduplicate(items: list[dict]) -> list[dict]:
+    """URL + 제목 유사도 기준으로 중복 기사를 제거합니다.
+
+    url이 비어 있는 경우 URL 기반 중복 체크를 건너뛰고 제목 유사도만 사용합니다.
+    """
     seen_urls: set[str] = set()
     seen_titles: list[str] = []
     result: list[dict] = []
-    for link in links:
-        url = link.get("url", "")
-        title = link.get("title", "")
-        if url in seen_urls:
+    for item in items:
+        url = (item.get("url") or "").strip()
+        title = (item.get("title") or "").strip()
+        if url and url in seen_urls:
             continue
-        is_duplicate = any(
+        if title and any(
             SequenceMatcher(None, title, t).ratio() >= 0.85
             for t in seen_titles
-        )
-        if is_duplicate:
+        ):
             continue
-        seen_urls.add(url)
-        seen_titles.append(title)
-        result.append(link)
+        if url:
+            seen_urls.add(url)
+        if title:
+            seen_titles.append(title)
+        result.append(item)
     return result
 
 
@@ -182,23 +186,7 @@ class QualityPipeline(BasePipeline):
             logger.info("[QualityPipeline] VADER 필터 후 결과 없음 — 원본 유지 (query=%s)", query)
 
         # 5. 중복 제거 — results 단계에서 수행하여 context·links 기사 집합 일치 보장
-        seen_urls: set[str] = set()
-        seen_titles: list[str] = []
-        deduped: list[dict] = []
-        for r in results:
-            url = r.get("url", "")
-            title = r.get("title", "")
-            if url in seen_urls:
-                continue
-            if any(
-                SequenceMatcher(None, title, t).ratio() >= 0.85
-                for t in seen_titles
-            ):
-                continue
-            seen_urls.add(url)
-            seen_titles.append(title)
-            deduped.append(r)
-        results = deduped
+        results = _deduplicate(results)
 
         # 6. Contextual Compression으로 context 생성
         context = self._build_context(results, query)
