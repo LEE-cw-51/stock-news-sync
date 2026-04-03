@@ -154,11 +154,17 @@ class QualityPipeline(BasePipeline):
         if not links:
             return raw_context, links
 
-        # 2. 최소 본문 길이 필터
-        results = [r for r in results if len(r.get("content", "")) >= self.MIN_CONTENT_LEN]
-        if not results:
-            logger.warning("[QualityPipeline] 최소 길이 필터 후 결과 없음 (query=%s)", query)
-            return "", []
+        # 2. 최소 본문 길이 필터 (GDELT 등 title-only 결과가 전부 걸러지면 원본 유지)
+        original_results = results
+        filtered_results = [r for r in results if len(r.get("content", "")) >= self.MIN_CONTENT_LEN]
+        if filtered_results:
+            results = filtered_results
+        else:
+            logger.warning(
+                "[QualityPipeline] 최소 길이 필터 후 결과 없음 — 원본 유지 (query=%s)",
+                query,
+            )
+            results = original_results
 
         # 3. BM25 재랭킹
         results = _bm25_rerank(query, results)

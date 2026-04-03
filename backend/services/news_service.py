@@ -1,12 +1,13 @@
 """
-news_service.py — 뉴스 소스별 fetch + light prefilter/reranking 함수 모음
+news_service.py — 뉴스 소스별 fetch 함수 모음
 
-각 함수는 뉴스 소스별 raw 데이터를 가져온 뒤,
-  - score 기반 프리필터링(Tavily: ≥0.5)과
-  - BM25 기준 가벼운 재랭킹(top-3)
-까지를 수행하여 (context_str, links_list, results_list) 형태로 반환한다.
-최종 Contextual Compression·VADER 필터·중복 제거 등 전체 파이프라인 오케스트레이션은
-retrieval_pipeline.py에서 담당한다.
+각 함수는 뉴스 소스별 raw 데이터를 가져온 뒤 최소한의 정제만 수행하여
+(context_str, links_list, results_list) 형태로 반환한다.
+  - Tavily: score 기반 프리필터링(≥0.5)
+  - 그 외 소스: HTML 태그 제거·포맷 정규화만 수행
+
+관련성 재랭킹(BM25)·Contextual Compression·VADER 필터·중복 제거 등
+전체 파이프라인 오케스트레이션은 retrieval_pipeline.py에서 단일 책임으로 담당한다.
 
 Fallback 체인:
   해외(US): get_foreign_news() → Tavily → Yahoo RSS → GDELT
@@ -20,7 +21,6 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 from urllib.parse import quote_plus, quote
 import requests
-from rank_bm25 import BM25Okapi
 from tavily import TavilyClient
 from dotenv import load_dotenv
 
@@ -34,16 +34,6 @@ tavily_key = os.getenv("TAVILY_API_KEY")
 tavily = TavilyClient(api_key=tavily_key) if tavily_key else None
 
 _html_tag_re = re.compile(r'<[^>]+>')
-
-
-def _bm25_rerank(query: str, results: list[dict], top_n: int = 3) -> list[dict]:
-    """BM25로 뉴스 관련성 재랭킹, top_n개 반환."""
-    if len(results) <= top_n:
-        return results
-    corpus = [(r['title'] + ' ' + r['content']).lower().split() for r in results]
-    scores = BM25Okapi(corpus).get_scores(query.lower().split())
-    ranked = sorted(zip(results, scores), key=lambda x: x[1], reverse=True)
-    return [r for r, _ in ranked[:top_n]]
 
 
 def _build_raw_output(results: list[dict]) -> tuple[str, list[dict], list[dict]]:
@@ -63,8 +53,8 @@ def get_tavily_news(query: str) -> tuple[str, list[dict], list[dict]]:
     """
     Tavily를 이용해 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인: Tavily(max=5, days=1) → score≥0.5 필터 → BM25 재랭킹(top-3)
-    추가 필터링은 retrieval_pipeline.py QualityPipeline 담당.
+    파이프라인: Tavily(max=5, days=1) → score≥0.5 프리필터
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     if not tavily:
         logger.error("TAVILY_API_KEY가 없습니다.")
@@ -94,11 +84,8 @@ def get_tavily_news(query: str) -> tuple[str, list[dict], list[dict]]:
 
         results = response.get('results', [])
 
-        # score 기준 관련성 필터링
+        # score 기준 관련성 프리필터링
         results = [r for r in results if r.get('score', 0) >= 0.5]
-
-        # BM25 재랭킹
-        results = _bm25_rerank(query, results)
 
         return _build_raw_output(results)
 
@@ -111,8 +98,8 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict], list[
     """
     Naver News API를 이용해 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인: Naver Search API(display=5, sort=date) → HTML 태그 제거 → BM25 재랭킹(top-3)
-    추가 필터링은 retrieval_pipeline.py QualityPipeline 담당.
+    파이프라인: Naver Search API(display=5, sort=date) → HTML 태그 제거
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     client_id = os.getenv("NAVER_CLIENT_ID", "")
     client_secret = os.getenv("NAVER_CLIENT_SECRET", "")
@@ -145,7 +132,6 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict], list[
             for item in items
         ]
 
-        results = _bm25_rerank(query, results)
         return _build_raw_output(results)
 
     except Exception as e:
@@ -153,12 +139,12 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict], list[
         return "", [], []
 
 
-def get_yahoo_rss_news(query: str, symbol=None) -> tuple[str, list[dict], list[dict]]:
+def get_yahoo_rss_news(query: str, symbol: str | None = None) -> tuple[str, list[dict], list[dict]]:
     """
     Yahoo Finance RSS 피드에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인: Yahoo RSS(symbol or ^GSPC) → XML 파싱 → BM25 재랭킹(top-3)
-    추가 필터링은 retrieval_pipeline.py QualityPipeline 담당.
+    파이프라인: Yahoo RSS(symbol or ^GSPC) → XML 파싱
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     ticker = symbol if symbol else "^GSPC"
     url = (
@@ -199,7 +185,6 @@ def get_yahoo_rss_news(query: str, symbol=None) -> tuple[str, list[dict], list[d
             logger.warning("Yahoo RSS: 결과 없음 (symbol=%s)", ticker)
             return "", [], []
 
-        results = _bm25_rerank(query, results)
         return _build_raw_output(results)
 
     except Exception as e:
@@ -211,8 +196,8 @@ def get_google_rss_news(query: str) -> tuple[str, list[dict], list[dict]]:
     """
     Google News RSS에서 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인: Google RSS(hl=ko&gl=KR) → XML 파싱 → HTML 태그 제거 → BM25 재랭킹(top-3)
-    추가 필터링은 retrieval_pipeline.py QualityPipeline 담당.
+    파이프라인: Google RSS(hl=ko&gl=KR) → XML 파싱 → HTML 태그 제거
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     url = (
         f"https://news.google.com/rss/search"
@@ -249,7 +234,6 @@ def get_google_rss_news(query: str) -> tuple[str, list[dict], list[dict]]:
             logger.warning("Google RSS: 결과 없음 (query=%s)", query)
             return "", [], []
 
-        results = _bm25_rerank(query, results)
         return _build_raw_output(results)
 
     except Exception as e:
@@ -261,8 +245,8 @@ def get_gdelt_news(query: str) -> tuple[str, list[dict], list[dict]]:
     """
     GDELT v2 Doc API에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
-    파이프라인: GDELT artlist(maxrecords=10) → BM25 재랭킹(top-3)
-    추가 필터링은 retrieval_pipeline.py QualityPipeline 담당.
+    파이프라인: GDELT artlist(maxrecords=10) — 본문 미제공으로 title을 content로 사용
+    재랭킹·압축·VADER 필터는 retrieval_pipeline.py QualityPipeline 담당.
     """
     url = (
         f'https://api.gdeltproject.org/api/v2/doc/doc'
@@ -302,7 +286,6 @@ def get_gdelt_news(query: str) -> tuple[str, list[dict], list[dict]]:
                 "published_date": date_str,
             })
 
-        results = _bm25_rerank(query, results)
         return _build_raw_output(results)
 
     except Exception as e:
@@ -310,7 +293,7 @@ def get_gdelt_news(query: str) -> tuple[str, list[dict], list[dict]]:
         return "", [], []
 
 
-def get_foreign_news(query: str, symbol=None) -> tuple[str, list[dict], list[dict]]:
+def get_foreign_news(query: str, symbol: str | None = None) -> tuple[str, list[dict], list[dict]]:
     """
     해외 뉴스 Fallback 체인: Tavily → Yahoo RSS → GDELT
 

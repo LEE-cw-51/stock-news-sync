@@ -114,7 +114,7 @@ def run_sync_engine_once():
     # 1-2. 한국 거시경제 뉴스 (한국어 — Naver)
     for keyword in KR_MACRO_KEYWORDS:
         try:
-            context, links = get_pipeline("macro", "kr").retrieve(keyword)
+            context, links = get_pipeline("macro", "kr").retrieve(keyword, market="kr")
             if context:
                 ai_contexts["macro"] += f"\n[한국 거시: {keyword}]\n{context}\n"
                 for item in links:
