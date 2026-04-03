@@ -108,10 +108,8 @@ class QualityPipeline(BasePipeline):
     - 최소 본문 길이 필터: len(content) < 80 stub 기사 제거
     - Contextual Compression: 기사 전문 대신 BM25 상위 2문장만 context에 포함
     - VADER hard filter: |compound| < 0.1 완전 중립 기사 제거
-    - Tavily score threshold: 0.6 (news_service.py 기본값 0.5에서 상향)
     """
 
-    SCORE_THRESHOLD = 0.6
     MIN_CONTENT_LEN = 80
     VADER_THRESHOLD = 0.1
     COMPRESS_TOP_N = 2
@@ -147,19 +145,14 @@ class QualityPipeline(BasePipeline):
         symbol: str | None = None,
         market: str = "us",
     ) -> tuple[str, list[dict]]:
-        # 1. 소스에서 raw 데이터 fetch (news_service.py 담당)
+        # 1. 소스에서 구조화 데이터 fetch (news_service.py 담당)
         if market == "kr":
-            raw_context, links = get_korean_news(query)
+            raw_context, links, results = get_korean_news(query)
         else:
-            raw_context, links = get_foreign_news(query, symbol)
+            raw_context, links, results = get_foreign_news(query, symbol)
 
         if not links:
             return raw_context, links
-
-        # news_service.py가 반환한 links를 results 형태로 재구성
-        # (context는 news_service 내부에서 이미 만들어지므로 raw_results를 직접 접근 불가)
-        # → links와 raw_context를 파싱해서 파이프라인 적용
-        results = self._parse_raw(raw_context, links)
 
         # 2. 최소 본문 길이 필터
         results = [r for r in results if len(r.get("content", "")) >= self.MIN_CONTENT_LEN]
@@ -197,31 +190,6 @@ class QualityPipeline(BasePipeline):
             "[QualityPipeline] retrieve 완료 (query=%s, 기사=%d개)", query, len(final_links)
         )
         return context, final_links
-
-    @staticmethod
-    def _parse_raw(raw_context: str, links: list[dict]) -> list[dict]:
-        """
-        news_service.py가 반환한 (context 문자열, links 리스트)를
-        파이프라인이 처리할 수 있는 results 형태로 재구성한다.
-
-        context 형식:
-            [1. 제목]\n본문\n\n[2. 제목]\n본문\n\n...
-        """
-        results = []
-        # context를 기사 단위로 분리
-        blocks = re.split(r"\n\n(?=\[\d+\.)", raw_context.strip())
-        for i, block in enumerate(blocks):
-            lines = block.strip().splitlines()
-            if not lines:
-                continue
-            # 첫 줄: "[N. 제목]" 형식
-            title_match = re.match(r"\[\d+\.\s*(.+?)\]", lines[0])
-            title = title_match.group(1) if title_match else lines[0]
-            content = "\n".join(lines[1:]).strip()
-            url = links[i]["url"] if i < len(links) else ""
-            date = links[i].get("date", "") if i < len(links) else ""
-            results.append({"title": title, "content": content, "url": url, "date": date})
-        return results
 
 
 # =============================================================================

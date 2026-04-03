@@ -1,8 +1,12 @@
 """
-news_service.py — 뉴스 소스별 순수 fetch 함수 모음
+news_service.py — 뉴스 소스별 fetch + light prefilter/reranking 함수 모음
 
-각 함수는 raw 데이터를 가져와 (context_str, links_list) 형태로 반환한다.
-필터링·재랭킹·중복 제거 등 파이프라인 로직은 retrieval_pipeline.py 담당.
+각 함수는 뉴스 소스별 raw 데이터를 가져온 뒤,
+  - score 기반 프리필터링(Tavily: ≥0.5)과
+  - BM25 기준 가벼운 재랭킹(top-3)
+까지를 수행하여 (context_str, links_list, results_list) 형태로 반환한다.
+최종 Contextual Compression·VADER 필터·중복 제거 등 전체 파이프라인 오케스트레이션은
+retrieval_pipeline.py에서 담당한다.
 
 Fallback 체인:
   해외(US): get_foreign_news() → Tavily → Yahoo RSS → GDELT
@@ -42,8 +46,8 @@ def _bm25_rerank(query: str, results: list[dict], top_n: int = 3) -> list[dict]:
     return [r for r, _ in ranked[:top_n]]
 
 
-def _build_raw_output(results: list[dict]) -> tuple[str, list[dict]]:
-    """results 리스트로부터 (context 문자열, links 리스트)를 생성한다."""
+def _build_raw_output(results: list[dict]) -> tuple[str, list[dict], list[dict]]:
+    """results 리스트로부터 (context 문자열, links 리스트, results 리스트)를 생성한다."""
     context = "\n\n".join([
         f"[{i+1}. {r['title']}]\n{r['content']}"
         for i, r in enumerate(results)
@@ -52,10 +56,10 @@ def _build_raw_output(results: list[dict]) -> tuple[str, list[dict]]:
         {"title": r['title'], "url": r['url'], "date": r.get('published_date', '')}
         for r in results
     ]
-    return context, links
+    return context, links, results
 
 
-def get_tavily_news(query: str) -> tuple[str, list[dict]]:
+def get_tavily_news(query: str) -> tuple[str, list[dict], list[dict]]:
     """
     Tavily를 이용해 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -64,7 +68,7 @@ def get_tavily_news(query: str) -> tuple[str, list[dict]]:
     """
     if not tavily:
         logger.error("TAVILY_API_KEY가 없습니다.")
-        return "", []
+        return "", [], []
 
     logger.info("Tavily 검색 시작: %s", query)
 
@@ -100,10 +104,10 @@ def get_tavily_news(query: str) -> tuple[str, list[dict]]:
 
     except Exception as e:
         logger.warning("Tavily 검색 실패 (%s): %s", query, e)
-        return "", []
+        return "", [], []
 
 
-def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
+def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict], list[dict]]:
     """
     Naver News API를 이용해 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -114,7 +118,7 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
     client_secret = os.getenv("NAVER_CLIENT_SECRET", "")
     if not client_id or not client_secret:
         logger.warning("NAVER_CLIENT_ID/SECRET 미설정 — 네이버 뉴스 스킵")
-        return "", []
+        return "", [], []
 
     logger.info("Naver 뉴스 검색 시작: %s", query)
 
@@ -146,10 +150,10 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict]]:
 
     except Exception as e:
         logger.warning("Naver 뉴스 검색 실패 (%s): %s", query, e)
-        return "", []
+        return "", [], []
 
 
-def get_yahoo_rss_news(query: str, symbol=None) -> tuple[str, list[dict]]:
+def get_yahoo_rss_news(query: str, symbol=None) -> tuple[str, list[dict], list[dict]]:
     """
     Yahoo Finance RSS 피드에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -175,7 +179,7 @@ def get_yahoo_rss_news(query: str, symbol=None) -> tuple[str, list[dict]]:
         channel = root.find("channel")
         if channel is None:
             logger.warning("Yahoo RSS: channel 요소 없음 (symbol=%s)", ticker)
-            return "", []
+            return "", [], []
 
         results = []
         for item in channel.findall("item"):
@@ -193,17 +197,17 @@ def get_yahoo_rss_news(query: str, symbol=None) -> tuple[str, list[dict]]:
 
         if not results:
             logger.warning("Yahoo RSS: 결과 없음 (symbol=%s)", ticker)
-            return "", []
+            return "", [], []
 
         results = _bm25_rerank(query, results)
         return _build_raw_output(results)
 
     except Exception as e:
         logger.warning("Yahoo RSS 검색 실패 (%s, symbol=%s): %s", query, ticker, e)
-        return "", []
+        return "", [], []
 
 
-def get_google_rss_news(query: str) -> tuple[str, list[dict]]:
+def get_google_rss_news(query: str) -> tuple[str, list[dict], list[dict]]:
     """
     Google News RSS에서 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -225,7 +229,7 @@ def get_google_rss_news(query: str) -> tuple[str, list[dict]]:
         channel = root.find("channel")
         if channel is None:
             logger.warning("Google RSS: channel 요소 없음 (query=%s)", query)
-            return "", []
+            return "", [], []
 
         results = []
         for item in channel.findall("item"):
@@ -243,17 +247,17 @@ def get_google_rss_news(query: str) -> tuple[str, list[dict]]:
 
         if not results:
             logger.warning("Google RSS: 결과 없음 (query=%s)", query)
-            return "", []
+            return "", [], []
 
         results = _bm25_rerank(query, results)
         return _build_raw_output(results)
 
     except Exception as e:
         logger.warning("Google RSS 검색 실패 (%s): %s", query, e)
-        return "", []
+        return "", [], []
 
 
-def get_gdelt_news(query: str) -> tuple[str, list[dict]]:
+def get_gdelt_news(query: str) -> tuple[str, list[dict], list[dict]]:
     """
     GDELT v2 Doc API에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -277,7 +281,7 @@ def get_gdelt_news(query: str) -> tuple[str, list[dict]]:
         articles = data.get("articles") or []
         if not articles:
             logger.warning("GDELT: 결과 없음 (query=%s)", query)
-            return "", []
+            return "", [], []
 
         results = []
         for article in articles:
@@ -303,34 +307,34 @@ def get_gdelt_news(query: str) -> tuple[str, list[dict]]:
 
     except Exception as e:
         logger.warning("GDELT 검색 실패 (%s): %s", query, e)
-        return "", []
+        return "", [], []
 
 
-def get_foreign_news(query: str, symbol=None) -> tuple[str, list[dict]]:
+def get_foreign_news(query: str, symbol=None) -> tuple[str, list[dict], list[dict]]:
     """
     해외 뉴스 Fallback 체인: Tavily → Yahoo RSS → GDELT
 
     각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
     """
-    context, links = get_tavily_news(query)
+    context, links, results = get_tavily_news(query)
     if links:
-        return context, links
-    context, links = get_yahoo_rss_news(query, symbol)
+        return context, links, results
+    context, links, results = get_yahoo_rss_news(query, symbol)
     if links:
-        return context, links
+        return context, links, results
     return get_gdelt_news(query)
 
 
-def get_korean_news(query: str) -> tuple[str, list[dict]]:
+def get_korean_news(query: str) -> tuple[str, list[dict], list[dict]]:
     """
     한국어 뉴스 Fallback 체인: Naver → Google RSS → GDELT
 
     각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
     """
-    context, links = get_naver_news(query)
+    context, links, results = get_naver_news(query)
     if links:
-        return context, links
-    context, links = get_google_rss_news(query)
+        return context, links, results
+    context, links, results = get_google_rss_news(query)
     if links:
-        return context, links
+        return context, links, results
     return get_gdelt_news(query)

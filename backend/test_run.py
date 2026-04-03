@@ -47,7 +47,7 @@ def test_news_and_ai():
     target = "삼성전자"
     print(f"[TEST] {target} 뉴스 + AI 테스트...")
 
-    context, links = get_tavily_news(target)
+    context, links, _ = get_tavily_news(target)
     if context:
         print(f"[OK] 뉴스 수집 성공! (링크 {len(links)}개)")
         summary = generate_ai_summary(target, context)
