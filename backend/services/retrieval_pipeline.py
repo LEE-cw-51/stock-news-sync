@@ -181,10 +181,29 @@ class QualityPipeline(BasePipeline):
         else:
             logger.info("[QualityPipeline] VADER 필터 후 결과 없음 — 원본 유지 (query=%s)", query)
 
-        # 5. Contextual Compression으로 context 생성
+        # 5. 중복 제거 — results 단계에서 수행하여 context·links 기사 집합 일치 보장
+        seen_urls: set[str] = set()
+        seen_titles: list[str] = []
+        deduped: list[dict] = []
+        for r in results:
+            url = r.get("url", "")
+            title = r.get("title", "")
+            if url in seen_urls:
+                continue
+            if any(
+                SequenceMatcher(None, title, t).ratio() >= 0.85
+                for t in seen_titles
+            ):
+                continue
+            seen_urls.add(url)
+            seen_titles.append(title)
+            deduped.append(r)
+        results = deduped
+
+        # 6. Contextual Compression으로 context 생성
         context = self._build_context(results, query)
 
-        # 6. links 정리: VADER 점수 메타데이터 + 중복 제거
+        # 7. links 정리: VADER 점수 메타데이터
         final_links = [
             {
                 "title": r["title"],
@@ -194,7 +213,6 @@ class QualityPipeline(BasePipeline):
             for r in results
         ]
         final_links = _add_sentiment(final_links)
-        final_links = _deduplicate_links(final_links)
 
         logger.info(
             "[QualityPipeline] retrieve 완료 (query=%s, 기사=%d개)", query, len(final_links)
