@@ -23,13 +23,13 @@ export default function Error({
         <p className="text-red-300 font-mono text-sm font-bold">
           {isDev ? error.message : "예기치 못한 오류가 발생했습니다. 잠시 후 다시 시도해주세요."}
         </p>
-        {/* 스택 트레이스는 개발 환경에서만 노출 */}
+        {/* 스택 트레이스와 digest는 개발 환경에서만 노출 (내부 경로/구현 정보 노출 방지) */}
         {isDev && error.stack && (
           <pre className="text-slate-500 font-mono text-[11px] overflow-auto whitespace-pre-wrap leading-relaxed">
             {error.stack}
           </pre>
         )}
-        {error.digest && (
+        {isDev && error.digest && (
           <p className="text-slate-600 text-[10px] font-mono">digest: {error.digest}</p>
         )}
       </div>

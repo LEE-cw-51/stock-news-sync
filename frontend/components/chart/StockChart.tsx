@@ -48,7 +48,10 @@ export default function StockChart({ symbol }: StockChartProps) {
       );
       if (isTVOrigin && isKnownParentNodeNullError) {
         event.preventDefault(); // 알려진 정리 단계 에러만 억제 → 앱 크래시 방지
-        console.warn("[StockChart] TradingView 내부 parentNode 에러 억제:", event.message);
+        // 개발 환경에서만 warn 출력 — 프로덕션 차트 열기/닫기 반복 시 로그 노이즈 방지
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[StockChart] TradingView 내부 parentNode 에러 억제:", event.message);
+        }
       }
     };
     window.addEventListener("error", suppressTVError);
@@ -80,7 +83,12 @@ export default function StockChart({ symbol }: StockChartProps) {
       window.removeEventListener("error", suppressTVError);
       if (typeof widgetRef.current?.remove === "function") {
         // remove()가 있으면 TradingView 내부 async 정리 위임
-        try { widgetRef.current.remove(); } catch { /* 정리 중 발생하는 에러 무시 */ }
+        try { widgetRef.current.remove(); } catch (e) {
+          // 개발 환경에서는 경고 출력해 정리 실패 추적 가능하게 유지
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[StockChart] TradingView remove() 에러:", e);
+          }
+        }
       } else if (containerRef.current) {
         // remove() 미지원 시(초기화 미완료 등) 자식 노드만 제한적으로 제거
         containerRef.current.replaceChildren();
