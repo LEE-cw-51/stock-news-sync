@@ -27,6 +27,38 @@ export default function StockChart({ symbol }: StockChartProps) {
   useEffect(() => {
     let isMounted = true;
 
+    // TradingView 내부 async 에러 억제 — remove() 후에도 async 정리가 이어지다
+    // parentNode가 null인 DOM 요소에 접근하는 Uncaught TypeError가 발생하는데,
+    // 이 에러가 앱 전체를 크래시시키는 것을 방지한다.
+    // 조건을 parentNode null TypeError로 좁혀 다른 TradingView 에러는 계속 관측 가능하게 유지.
+    const suppressTVError = (event: ErrorEvent) => {
+      const isTVOrigin =
+        event.filename?.includes("tv.js") ||
+        event.filename?.includes("tradingview");
+      // Error.message에는 "TypeError" 문자열이 없으므로 instanceof/name으로 타입 판별
+      const isTypeError =
+        event.error instanceof TypeError ||
+        (event.error instanceof Error && event.error.name === "TypeError");
+      const errorMessage =
+        event.error instanceof Error ? event.error.message : "";
+      const messageCandidates = [event.message, errorMessage].filter(
+        (m): m is string => m.length > 0,
+      );
+      const isKnownParentNodeNullError = messageCandidates.some(
+        (m) =>
+          m.includes("parentNode") &&
+          (m.includes("null") || m.includes("Null")),
+      );
+      if (isTVOrigin && isTypeError && isKnownParentNodeNullError) {
+        event.preventDefault(); // 알려진 정리 단계 에러만 억제 → 앱 크래시 방지
+        // 개발 환경에서만 warn 출력 — 프로덕션 차트 열기/닫기 반복 시 로그 노이즈 방지
+        if (process.env.NODE_ENV !== "production") {
+          console.warn("[StockChart] TradingView 내부 parentNode 에러 억제:", event.message);
+        }
+      }
+    };
+    window.addEventListener("error", suppressTVError);
+
     function initWidget() {
       if (!isMounted || !containerRef.current || !window.TradingView) return;
       try {
@@ -51,9 +83,15 @@ export default function StockChart({ symbol }: StockChartProps) {
 
     const cleanup = () => {
       isMounted = false;
+      window.removeEventListener("error", suppressTVError);
       if (typeof widgetRef.current?.remove === "function") {
         // remove()가 있으면 TradingView 내부 async 정리 위임
-        widgetRef.current.remove();
+        try { widgetRef.current.remove(); } catch (e) {
+          // 개발 환경에서는 경고 출력해 정리 실패 추적 가능하게 유지
+          if (process.env.NODE_ENV !== "production") {
+            console.warn("[StockChart] TradingView remove() 에러:", e);
+          }
+        }
       } else if (containerRef.current) {
         // remove() 미지원 시(초기화 미완료 등) 자식 노드만 제한적으로 제거
         containerRef.current.replaceChildren();
