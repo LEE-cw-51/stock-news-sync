@@ -27,6 +27,20 @@ export default function StockChart({ symbol }: StockChartProps) {
   useEffect(() => {
     let isMounted = true;
 
+    // TradingView 내부 async 에러 억제 — remove() 후에도 async 정리가 이어지다
+    // parentNode가 null인 DOM 요소에 접근하는 Uncaught TypeError가 발생하는데,
+    // 이 에러가 앱 전체를 크래시시키는 것을 방지한다.
+    const suppressTVError = (event: ErrorEvent) => {
+      const isTVOrigin =
+        event.filename?.includes("tv.js") ||
+        event.filename?.includes("tradingview");
+      if (isTVOrigin) {
+        event.preventDefault(); // Uncaught 처리 억제 → 앱 크래시 방지
+        console.warn("[StockChart] TradingView 내부 에러 억제:", event.message);
+      }
+    };
+    window.addEventListener("error", suppressTVError);
+
     function initWidget() {
       if (!isMounted || !containerRef.current || !window.TradingView) return;
       try {
@@ -51,9 +65,10 @@ export default function StockChart({ symbol }: StockChartProps) {
 
     const cleanup = () => {
       isMounted = false;
+      window.removeEventListener("error", suppressTVError);
       if (typeof widgetRef.current?.remove === "function") {
         // remove()가 있으면 TradingView 내부 async 정리 위임
-        widgetRef.current.remove();
+        try { widgetRef.current.remove(); } catch { /* 정리 중 발생하는 에러 무시 */ }
       } else if (containerRef.current) {
         // remove() 미지원 시(초기화 미완료 등) 자식 노드만 제한적으로 제거
         containerRef.current.replaceChildren();
