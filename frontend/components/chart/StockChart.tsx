@@ -35,6 +35,10 @@ export default function StockChart({ symbol }: StockChartProps) {
       const isTVOrigin =
         event.filename?.includes("tv.js") ||
         event.filename?.includes("tradingview");
+      // Error.message에는 "TypeError" 문자열이 없으므로 instanceof/name으로 타입 판별
+      const isTypeError =
+        event.error instanceof TypeError ||
+        (event.error instanceof Error && event.error.name === "TypeError");
       const errorMessage =
         event.error instanceof Error ? event.error.message : "";
       const messageCandidates = [event.message, errorMessage].filter(
@@ -43,10 +47,9 @@ export default function StockChart({ symbol }: StockChartProps) {
       const isKnownParentNodeNullError = messageCandidates.some(
         (m) =>
           m.includes("parentNode") &&
-          (m.includes("null") || m.includes("Null")) &&
-          m.includes("TypeError"),
+          (m.includes("null") || m.includes("Null")),
       );
-      if (isTVOrigin && isKnownParentNodeNullError) {
+      if (isTVOrigin && isTypeError && isKnownParentNodeNullError) {
         event.preventDefault(); // 알려진 정리 단계 에러만 억제 → 앱 크래시 방지
         // 개발 환경에서만 warn 출력 — 프로덕션 차트 열기/닫기 반복 시 로그 노이즈 방지
         if (process.env.NODE_ENV !== "production") {
