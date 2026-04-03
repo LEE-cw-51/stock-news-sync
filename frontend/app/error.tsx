@@ -9,11 +9,19 @@ export default function Error({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    console.error("[App Error Boundary]", error);
-  }, [error]);
-
   const isDev = process.env.NODE_ENV !== "production";
+
+  useEffect(() => {
+    if (isDev) {
+      // 개발 환경: 전체 에러 객체 출력 (메시지·스택 포함)
+      console.error("[App Error Boundary]", error);
+    } else {
+      // 프로덕션: digest만 출력해 내부 정보 노출 최소화
+      if (error.digest) {
+        console.error("[App Error Boundary]", { digest: error.digest });
+      }
+    }
+  }, [error, isDev]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-950 text-slate-200 gap-6 p-8">
