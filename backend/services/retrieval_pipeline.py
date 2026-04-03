@@ -174,11 +174,12 @@ class QualityPipeline(BasePipeline):
         # 3. BM25 재랭킹
         results = _bm25_rerank(query, results)
 
-        # 4. VADER hard filter — 완전 중립 기사 제거
+        # 4. VADER — compound 1회 계산 후 r["_sentiment"]에 저장, 완전 중립 기사 hard filter
         scored = []
         for r in results:
-            compound = abs(_vader.polarity_scores(r.get("title", ""))["compound"])
-            if compound >= self.VADER_THRESHOLD:
+            scores = _vader.polarity_scores(r.get("title", ""))
+            r["_sentiment"] = round(scores["compound"], 3)
+            if abs(scores["compound"]) >= self.VADER_THRESHOLD:
                 scored.append(r)
         # 필터 후 결과가 없으면 원래 results 유지 (정보량 0 방지)
         if scored:
@@ -192,16 +193,16 @@ class QualityPipeline(BasePipeline):
         # 6. Contextual Compression으로 context 생성
         context = self._build_context(results, query)
 
-        # 7. links 정리: VADER 점수 메타데이터
+        # 7. links 정리: 4단계에서 계산한 VADER 점수 재사용 (이중 계산 방지)
         final_links = [
             {
                 "title": r["title"],
                 "url": r["url"],
                 "date": r.get("published_date") or r.get("date", ""),
+                "sentiment": r.get("_sentiment", 0.0),
             }
             for r in results
         ]
-        final_links = _add_sentiment(final_links)
 
         logger.info(
             "[QualityPipeline] retrieve 완료 (query=%s, 기사=%d개)", query, len(final_links)
