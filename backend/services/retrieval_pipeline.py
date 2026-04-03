@@ -186,7 +186,11 @@ class QualityPipeline(BasePipeline):
 
         # 6. links 정리: VADER 점수 메타데이터 + 중복 제거
         final_links = [
-            {"title": r["title"], "url": r["url"], "date": r.get("date", "")}
+            {
+                "title": r["title"],
+                "url": r["url"],
+                "date": r.get("published_date") or r.get("date", ""),
+            }
             for r in results
         ]
         final_links = _add_sentiment(final_links)
