@@ -36,12 +36,23 @@ tavily = TavilyClient(api_key=tavily_key) if tavily_key else None
 _html_tag_re = re.compile(r'<[^>]+>')
 
 
-def _build_raw_output(results: list[dict]) -> tuple[str, list[dict], list[dict]]:
-    """results 리스트로부터 (context 문자열, links 리스트, results 리스트)를 생성한다."""
-    context = "\n\n".join([
-        f"[{i+1}. {r['title']}]\n{r['content']}"
-        for i, r in enumerate(results)
-    ])
+def _build_raw_output(
+    results: list[dict],
+    build_context: bool = True,
+) -> tuple[str, list[dict], list[dict]]:
+    """results 리스트로부터 (context 문자열, links 리스트, results 리스트)를 생성한다.
+
+    build_context=False 시 context 문자열 생성을 생략한다.
+    retrieval_pipeline 경유 시에는 파이프라인이 압축 context를 직접 생성하므로
+    raw context 빌드가 불필요하다.
+    """
+    context = (
+        "\n\n".join([
+            f"[{i+1}. {r['title']}]\n{r['content']}"
+            for i, r in enumerate(results)
+        ])
+        if build_context else ""
+    )
     links = [
         {"title": r['title'], "url": r['url'], "date": r.get('published_date', '')}
         for r in results
@@ -49,7 +60,7 @@ def _build_raw_output(results: list[dict]) -> tuple[str, list[dict], list[dict]]
     return context, links, results
 
 
-def get_tavily_news(query: str) -> tuple[str, list[dict], list[dict]]:
+def get_tavily_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Tavily를 이용해 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -87,14 +98,14 @@ def get_tavily_news(query: str) -> tuple[str, list[dict], list[dict]]:
         # score 기준 관련성 프리필터링
         results = [r for r in results if r.get('score', 0) >= 0.5]
 
-        return _build_raw_output(results)
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("Tavily 검색 실패 (%s): %s", query, e)
         return "", [], []
 
 
-def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict], list[dict]]:
+def get_naver_news(query: str, display: int = 5, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Naver News API를 이용해 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -132,14 +143,14 @@ def get_naver_news(query: str, display: int = 5) -> tuple[str, list[dict], list[
             for item in items
         ]
 
-        return _build_raw_output(results)
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("Naver 뉴스 검색 실패 (%s): %s", query, e)
         return "", [], []
 
 
-def get_yahoo_rss_news(query: str, symbol: str | None = None) -> tuple[str, list[dict], list[dict]]:
+def get_yahoo_rss_news(query: str, symbol: str | None = None, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Yahoo Finance RSS 피드에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -185,14 +196,14 @@ def get_yahoo_rss_news(query: str, symbol: str | None = None) -> tuple[str, list
             logger.warning("Yahoo RSS: 결과 없음 (symbol=%s)", ticker)
             return "", [], []
 
-        return _build_raw_output(results)
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("Yahoo RSS 검색 실패 (%s, symbol=%s): %s", query, ticker, e)
         return "", [], []
 
 
-def get_google_rss_news(query: str) -> tuple[str, list[dict], list[dict]]:
+def get_google_rss_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     Google News RSS에서 한국어 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -234,14 +245,14 @@ def get_google_rss_news(query: str) -> tuple[str, list[dict], list[dict]]:
             logger.warning("Google RSS: 결과 없음 (query=%s)", query)
             return "", [], []
 
-        return _build_raw_output(results)
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("Google RSS 검색 실패 (%s): %s", query, e)
         return "", [], []
 
 
-def get_gdelt_news(query: str) -> tuple[str, list[dict], list[dict]]:
+def get_gdelt_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     GDELT v2 Doc API에서 뉴스 본문(Context)과 링크를 가져옵니다.
 
@@ -286,38 +297,42 @@ def get_gdelt_news(query: str) -> tuple[str, list[dict], list[dict]]:
                 "published_date": date_str,
             })
 
-        return _build_raw_output(results)
+        return _build_raw_output(results, build_context=build_context)
 
     except Exception as e:
         logger.warning("GDELT 검색 실패 (%s): %s", query, e)
         return "", [], []
 
 
-def get_foreign_news(query: str, symbol: str | None = None) -> tuple[str, list[dict], list[dict]]:
+def get_foreign_news(
+    query: str,
+    symbol: str | None = None,
+    build_context: bool = True,
+) -> tuple[str, list[dict], list[dict]]:
     """
     해외 뉴스 Fallback 체인: Tavily → Yahoo RSS → GDELT
 
     각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
     """
-    context, links, results = get_tavily_news(query)
+    context, links, results = get_tavily_news(query, build_context=build_context)
     if links:
         return context, links, results
-    context, links, results = get_yahoo_rss_news(query, symbol)
+    context, links, results = get_yahoo_rss_news(query, symbol, build_context=build_context)
     if links:
         return context, links, results
-    return get_gdelt_news(query)
+    return get_gdelt_news(query, build_context=build_context)
 
 
-def get_korean_news(query: str) -> tuple[str, list[dict], list[dict]]:
+def get_korean_news(query: str, build_context: bool = True) -> tuple[str, list[dict], list[dict]]:
     """
     한국어 뉴스 Fallback 체인: Naver → Google RSS → GDELT
 
     각 소스에서 links가 비어 있으면 다음 소스로 넘어갑니다.
     """
-    context, links, results = get_naver_news(query)
+    context, links, results = get_naver_news(query, build_context=build_context)
     if links:
         return context, links, results
-    context, links, results = get_google_rss_news(query)
+    context, links, results = get_google_rss_news(query, build_context=build_context)
     if links:
         return context, links, results
-    return get_gdelt_news(query)
+    return get_gdelt_news(query, build_context=build_context)

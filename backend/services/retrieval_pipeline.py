@@ -111,6 +111,7 @@ class QualityPipeline(BasePipeline):
     MIN_CONTENT_LEN = 80
     VADER_THRESHOLD = 0.1
     COMPRESS_TOP_N = 2
+    MAX_COMPRESS_CHARS = 400  # 문장 분리 불가 시(구두점 부재) 강제 글자 수 제한
 
     def _compress(self, content: str, query: str) -> str:
         """
@@ -123,7 +124,7 @@ class QualityPipeline(BasePipeline):
             if len(s.strip()) > 20
         ]
         if len(sentences) <= self.COMPRESS_TOP_N:
-            return content
+            return content[: self.MAX_COMPRESS_CHARS]
         corpus = [s.lower().split() for s in sentences]
         scores = BM25Okapi(corpus).get_scores(query.lower().split())
         ranked = sorted(zip(sentences, scores), key=lambda x: x[1], reverse=True)
@@ -143,11 +144,11 @@ class QualityPipeline(BasePipeline):
         symbol: str | None = None,
         market: str = "us",
     ) -> tuple[str, list[dict]]:
-        # 1. 소스에서 구조화 데이터 fetch (news_service.py 담당)
+        # 1. 소스에서 구조화 데이터 fetch (파이프라인이 직접 context를 생성하므로 build_context=False)
         if market == "kr":
-            raw_context, links, results = get_korean_news(query)
+            raw_context, links, results = get_korean_news(query, build_context=False)
         else:
-            raw_context, links, results = get_foreign_news(query, symbol)
+            raw_context, links, results = get_foreign_news(query, symbol, build_context=False)
 
         if not links:
             return raw_context, links
