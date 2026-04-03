@@ -24,7 +24,7 @@ from backend.config.tickers import (
 )
 from backend.services.db_service import DBService
 from backend.services.market_service import get_market_indices, get_top_volume_stocks, get_stock_history  # get_stock_history: AI 추세 컨텍스트용
-from backend.services.retrieval_pipeline import get_pipeline
+from backend.services.retrieval_pipeline import BasePipeline, get_pipeline
 from backend.services.ai_service import generate_ai_summary
 
 def _build_trend_context(symbol: str, name: str, records: list) -> str:
@@ -95,7 +95,7 @@ def run_sync_engine_once():
     # 파이프라인 인스턴스를 루프 밖에서 1회 생성하여 재사용
     macro_us_pipeline = get_pipeline("macro", "us")
     macro_kr_pipeline = get_pipeline("macro", "kr")
-    pipeline_cache: dict[tuple[str, str], object] = {}
+    pipeline_cache: dict[tuple[str, str], BasePipeline] = {}
 
     # 1. 거시경제 뉴스 (영문 — Tavily)
     for keyword in MACRO_KEYWORDS:
@@ -166,9 +166,10 @@ def run_sync_engine_once():
                 else:
                     market = "us"
                     query = info['name']
-                pipeline = pipeline_cache.setdefault(
-                    (category, market), get_pipeline(category, market)
-                )
+                cache_key = (category, market)
+                if cache_key not in pipeline_cache:
+                    pipeline_cache[cache_key] = get_pipeline(category, market)
+                pipeline = pipeline_cache[cache_key]
                 context, links = pipeline.retrieve(query, symbol=symbol, market=market)
                 if context:
                     ai_contexts[category] += f"\n[{info['name']}]\n{context}\n"

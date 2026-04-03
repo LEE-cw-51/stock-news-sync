@@ -43,13 +43,6 @@ def _bm25_rerank(query: str, results: list[dict], top_n: int = 3) -> list[dict]:
     return [r for r, _ in ranked[:top_n]]
 
 
-def _add_sentiment(links: list[dict]) -> list[dict]:
-    """VADER로 제목 기반 감성 점수(-1.0~+1.0)를 메타데이터로 추가."""
-    for link in links:
-        scores = _vader.polarity_scores(link.get("title", ""))
-        link["sentiment"] = round(scores["compound"], 3)
-    return links
-
 
 def _deduplicate(items: list[dict]) -> list[dict]:
     """URL + 제목 유사도 기준으로 중복 기사를 제거합니다.
@@ -161,7 +154,11 @@ class QualityPipeline(BasePipeline):
 
         # 2. 최소 본문 길이 필터 (GDELT 등 title-only 결과가 전부 걸러지면 원본 유지)
         original_results = results
-        filtered_results = [r for r in results if len(r.get("content", "")) >= self.MIN_CONTENT_LEN]
+        filtered_results = [
+            r
+            for r in results
+            if len(r.get("content", "")) >= self.MIN_CONTENT_LEN
+        ]
         if filtered_results:
             results = filtered_results
         else:
