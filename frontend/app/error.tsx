@@ -16,10 +16,11 @@ export default function Error({
       // 개발 환경: 전체 에러 객체 출력 (메시지·스택 포함)
       console.error("[App Error Boundary]", error);
     } else {
-      // 프로덕션: digest만 출력해 내부 정보 노출 최소화
-      if (error.digest) {
-        console.error("[App Error Boundary]", { digest: error.digest });
-      }
+      // 프로덕션: 내부 정보 노출은 최소화하되, digest 유무와 무관하게 식별 정보는 항상 출력
+      console.error("[App Error Boundary]", {
+        name: error.name,
+        ...(error.digest ? { digest: error.digest } : {}),
+      });
     }
   }, [error, isDev]);
 
