@@ -109,14 +109,15 @@ def _parse_fast_schema(raw: str) -> dict | None:
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
     try:
         raw_dict = json.loads(cleaned)
-    except json.JSONDecodeError:
-        raw_dict = {}
+    except json.JSONDecodeError as e:
+        logger.warning("⚠️ AISummaryFastSchema JSON 디코딩 실패: %s", e)
+        return None
 
     try:
         schema = AISummaryFastSchema.model_validate(raw_dict)
         return schema.model_dump()
     except ValidationError:
-        # 부분 복구
+        # JSON 파싱은 성공했지만 스키마가 맞지 않는 경우에만 부분 복구
         result: dict = {}
         for field_name in AISummaryFastSchema.model_fields:
             val = raw_dict.get(field_name)
