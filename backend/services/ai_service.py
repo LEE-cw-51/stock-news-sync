@@ -352,7 +352,10 @@ def _parse_with_pydantic(raw: str) -> dict | None:
             except Exception as ex:
                 # 예상 외 오류 → 기본값 사용
                 logger.warning("⚠️ %s 필드 복구 실패: %s", field_name, ex)
-                validated_data[field_name] = field_info.default or ([] if 'list' in str(field_info.annotation) else "")
+                default_value = field_info.get_default(call_default_factory=True)
+                if default_value is None:
+                    default_value = [] if 'list' in str(field_info.annotation) else ""
+                validated_data[field_name] = default_value
 
         logger.info("✅ 부분 파싱 완료: %d 필드 복원", len(validated_data))
         return validated_data
