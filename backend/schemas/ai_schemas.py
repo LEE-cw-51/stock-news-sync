@@ -142,17 +142,17 @@ class AISummaryFastSchema(BaseModel):
     )
     bullets: list[str] = Field(
         default_factory=list,
-        max_items=5,
+        max_length=5,
         description="보조 수치·세부 정보 (최대 5개, key_event와 중복 제외)"
     )
     reference_indicators: list[str] = Field(
         default_factory=list,
-        max_items=4,
+        max_length=4,
         description="투자자가 확인해야 할 지표 (최대 4개)"
     )
     glossary_terms: list[GlossaryTermModel] = Field(
         default_factory=list,
-        max_items=5,
+        max_length=5,
         description="금융 용어 정의 (최대 5개)"
     )
 
