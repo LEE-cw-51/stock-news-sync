@@ -130,7 +130,11 @@ def _parse_fast_schema(raw: str) -> dict | None:
                 result[field_name] = [v for v in (val or []) if isinstance(v, str)][:4]
             elif field_name == 'glossary_terms':
                 result[field_name] = [
-                    item for item in (val or [])
+                    {
+                        "term": item.get("term", "")[:50],
+                        "definition": item.get("definition", "")[:200],
+                    }
+                    for item in (val or [])
                     if isinstance(item, dict)
                     and isinstance(item.get("term"), str)
                     and isinstance(item.get("definition"), str)

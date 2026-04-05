@@ -113,8 +113,8 @@ class AISummarySchema(BaseModel):
             for item in v:
                 if isinstance(item, dict):
                     try:
-                        GlossaryTermModel.model_validate(item)
-                        valid_terms.append(item)
+                        normalized = GlossaryTermModel.model_validate(item)
+                        valid_terms.append(normalized.model_dump())
                     except Exception:
                         # 검증 실패 항목 제외
                         continue
