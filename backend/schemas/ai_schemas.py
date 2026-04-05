@@ -180,8 +180,8 @@ class AISummaryFastSchema(BaseModel):
             for item in v:
                 if isinstance(item, dict):
                     try:
-                        GlossaryTermModel.model_validate(item)
-                        valid_terms.append(item)
+                        normalized = GlossaryTermModel.model_validate(item)
+                        valid_terms.append(normalized.model_dump())
                     except Exception:
                         continue
             return valid_terms

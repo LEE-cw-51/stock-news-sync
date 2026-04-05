@@ -340,8 +340,8 @@ def _parse_with_pydantic(raw: str) -> dict | None:
                         valid_terms = []
                         for item in field_value:
                             try:
-                                GlossaryTermModel.model_validate(item)
-                                valid_terms.append(item)
+                                normalized = GlossaryTermModel.model_validate(item)
+                                valid_terms.append(normalized.model_dump())
                             except ValidationError:
                                 continue
                         validated_data[field_name] = valid_terms[:5]
