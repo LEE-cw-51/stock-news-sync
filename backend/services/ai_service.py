@@ -8,11 +8,15 @@ from dotenv import load_dotenv
 from pydantic import ValidationError
 
 try:
-    from backend.config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
-    from backend.schemas.ai_schemas import AISummarySchema, GlossaryTermModel
+    from backend.config.models import MODEL_CONFIG, SLM_MODEL_CONFIG, MAX_TOKENS, SLM_MAX_TOKENS, TEMPERATURE
+    from backend.schemas.ai_schemas import (
+        AISummarySchema, AISummaryFastSchema, AISummaryDeepSchema, GlossaryTermModel
+    )
 except ModuleNotFoundError:
-    from config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
-    from schemas.ai_schemas import AISummarySchema, GlossaryTermModel
+    from config.models import MODEL_CONFIG, SLM_MODEL_CONFIG, MAX_TOKENS, SLM_MAX_TOKENS, TEMPERATURE
+    from schemas.ai_schemas import (
+        AISummarySchema, AISummaryFastSchema, AISummaryDeepSchema, GlossaryTermModel
+    )
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -60,6 +64,199 @@ def _get_client_and_model(model_name: str):
         return _GEMINI_CLIENT, model_name[len("gemini/"):]
 
     raise ValueError(f"알 수 없는 모델 prefix: {model_name}")
+
+
+def _call_llm(model_name: str, messages: list, max_tokens: int) -> str | None:
+    """
+    단일 LLM 호출 공통 함수.
+    - 429/할당량 초과 시 _quota_exceeded_models에 기록 후 None 반환
+    - 토큰 잘림(finish_reason=length) 시 None 반환
+    - 성공 시 응답 문자열 반환
+    """
+    if model_name in _quota_exceeded_models:
+        return None
+
+    try:
+        client, api_model = _get_client_and_model(model_name)
+        response = client.chat.completions.create(
+            model=api_model,
+            messages=messages,
+            max_tokens=max_tokens,
+            temperature=TEMPERATURE,
+        )
+        if response.choices[0].finish_reason == "length":
+            logger.warning(f"⚠️ {model_name} 토큰 잘림(length) → 건너뜁니다.")
+            return None
+        return response.choices[0].message.content or ""
+
+    except RateLimitError:
+        _quota_exceeded_models.add(model_name)
+        logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화.")
+        return None
+
+    except Exception as e:
+        error_str = str(e)
+        if "RESOURCE_EXHAUSTED" in error_str or "429" in error_str:
+            _quota_exceeded_models.add(model_name)
+            logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화.")
+        else:
+            logger.warning(f"⚠️ {model_name} 실패 ({error_str[:80]})")
+        return None
+
+
+def _parse_fast_schema(raw: str) -> dict | None:
+    """Schema A (AISummaryFastSchema) 파싱 — SLM 응답 전용."""
+    cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
+    try:
+        raw_dict = json.loads(cleaned)
+    except json.JSONDecodeError:
+        raw_dict = {}
+
+    try:
+        schema = AISummaryFastSchema.model_validate(raw_dict)
+        return schema.model_dump()
+    except ValidationError:
+        # 부분 복구
+        result: dict = {}
+        for field_name in AISummaryFastSchema.model_fields:
+            val = raw_dict.get(field_name)
+            if field_name == 'key_event':
+                result[field_name] = val if isinstance(val, str) else ""
+            elif field_name == 'glossary_terms':
+                result[field_name] = [
+                    item for item in (val or [])
+                    if isinstance(item, dict)
+                    and isinstance(item.get("term"), str)
+                    and isinstance(item.get("definition"), str)
+                ]
+            else:
+                result[field_name] = [v for v in (val or []) if isinstance(v, str)]
+        return result
+
+
+def _parse_deep_schema(raw: str) -> dict | None:
+    """Schema B (AISummaryDeepSchema) 파싱 — LLM Thinker 응답 전용."""
+    cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
+    try:
+        raw_dict = json.loads(cleaned)
+    except json.JSONDecodeError:
+        raw_dict = {}
+
+    try:
+        schema = AISummaryDeepSchema.model_validate(raw_dict)
+        return schema.model_dump()
+    except ValidationError:
+        result: dict = {}
+        for field_name in AISummaryDeepSchema.model_fields:
+            val = raw_dict.get(field_name)
+            result[field_name] = val if isinstance(val, str) else ""
+        return result
+
+
+def _generate_fast_extract(
+    stock_name: str, context: str, category: str
+) -> dict | None:
+    """
+    Step 1 — SLM Worker: Schema A (key_event, bullets, reference_indicators, glossary_terms) 빠른 추출.
+    - SLM_MODEL_CONFIG의 빠른 모델 사용
+    - 실패 시 None 반환 → 호출자가 단일 폴백으로 전환
+    """
+    system_prompt = """당신은 뉴스에서 핵심 팩트를 빠르게 추출하는 전문가입니다.
+[절대 규칙]
+1. 환각 금지: 제공된 뉴스 원문에 없는 정보는 절대 작성하지 마십시오.
+2. 언어: 반드시 한국어로 출력하십시오.
+3. JSON ONLY: 마크다운·코드블록 없이 순수 JSON만 출력하십시오."""
+
+    user_prompt = f"""
+[분석 대상]: {stock_name}
+
+[뉴스 데이터]
+{context}
+
+[임무] 아래 4개 필드만 추출하여 JSON으로 반환하세요.
+
+[출력 형식 - 순수 JSON만]
+{{
+  "key_event": "무슨 일이 있었는지 서술형 1-2문장 (최대 500자). 없으면 빈 문자열.",
+  "bullets": ["key_event와 겹치지 않는 보조 수치·세부정보 (최대 5개)"],
+  "reference_indicators": ["투자자가 확인해야 할 지표 (최대 4개)"],
+  "glossary_terms": [{{"term": "용어명(최대 50자)", "definition": "한 줄 정의(최대 200자)"}}]
+}}
+"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    for model_name in SLM_MODEL_CONFIG.get(category, SLM_MODEL_CONFIG["watchlist"]):
+        logger.info(f"⚡ [SLM Worker] Schema A 추출 시도 (모델: {model_name})")
+        raw = _call_llm(model_name, messages, SLM_MAX_TOKENS)
+        if raw is None:
+            continue
+        parsed = _parse_fast_schema(raw)
+        if parsed:
+            logger.info(f"✅ [SLM Worker] Schema A 추출 완료 (모델: {model_name})")
+            return parsed
+
+    logger.warning("⚠️ [SLM Worker] 모든 모델 실패 → 단일 폴백으로 전환")
+    return None
+
+
+def _generate_deep_insight(
+    stock_name: str, context: str, fast_result: dict, category: str
+) -> dict:
+    """
+    Step 2 — LLM Thinker: Schema B (expected_impact, flow_explanation, trend_insight) 심층 분석.
+    - Step 1 결과(fast_result)를 컨텍스트로 받아 심층 추론 수행
+    - 실패 시 기본값 dict 반환 (빈 문자열)
+    """
+    key_event_summary = fast_result.get("key_event", "")
+
+    system_prompt = """당신은 투자자에게 뉴스 기반 심층 인사이트를 제공하는 시니어 애널리스트입니다.
+[절대 규칙]
+1. 환각 금지: 제공된 뉴스 원문에 없는 정보는 절대 작성하지 마십시오.
+2. 서술형 우선: 반드시 완전한 문장으로 작성하세요.
+3. 언어: 반드시 한국어로 출력하십시오.
+4. JSON ONLY: 마크다운·코드블록 없이 순수 JSON만 출력하십시오."""
+
+    user_prompt = f"""
+[분석 대상]: {stock_name}
+
+[뉴스 데이터]
+{context}
+
+[1단계 팩트 요약 (참고용)]
+{key_event_summary}
+
+[임무] 위 뉴스와 팩트 요약을 바탕으로 아래 3개 심층 분석 필드를 JSON으로 작성하세요.
+
+[출력 형식 - 순수 JSON만]
+{{
+  "expected_impact": "투자자에게 왜 중요한지, 어떤 영향이 예상되는지 서술형 1-2문장 (최대 500자). 없으면 빈 문자열.",
+  "flow_explanation": "원인 → 결과 → 영향 흐름 1-2문장 (최대 500자). 없으면 빈 문자열.",
+  "trend_insight": "주가 추세 데이터 기반 1-2문장 (최대 500자). 없으면 빈 문자열."
+}}
+"""
+
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    # LLM Thinker는 기존 MODEL_CONFIG 사용 (고성능 모델 우선)
+    for model_name in MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"]):
+        logger.info(f"🧠 [LLM Thinker] Schema B 분석 시도 (모델: {model_name})")
+        raw = _call_llm(model_name, messages, MAX_TOKENS)
+        if raw is None:
+            continue
+        parsed = _parse_deep_schema(raw)
+        if parsed:
+            logger.info(f"✅ [LLM Thinker] Schema B 분석 완료 (모델: {model_name})")
+            return parsed
+
+    logger.warning("⚠️ [LLM Thinker] 모든 모델 실패 → Schema B 기본값 반환")
+    return {"expected_impact": "", "flow_explanation": "", "trend_insight": ""}
 
 
 def _parse_with_pydantic(raw: str) -> dict | None:
@@ -138,17 +335,13 @@ def _parse_with_pydantic(raw: str) -> dict | None:
         return validated_data
 
 
-def generate_ai_summary(stock_name: str, context: str, category: str = "watchlist") -> dict | str:
+def _fallback_single_call(
+    stock_name: str, context: str, category: str
+) -> dict | str:
     """
-    카테고리별 최적 모델로 AI 브리핑을 생성합니다.
-    - 모델 우선순위: backend/config/models.py 에서 설정
-    - category: "macro" | "portfolio" | "watchlist"
-    - 반환값: JSON 파싱 성공 시 dict, 실패 시 원본 문자열 (하위 호환 폴백)
+    폴백 단일 호출 — Step 1 실패 시 기존 방식으로 7개 필드 한 번에 생성.
+    Phase 1 방식 그대로 유지 (하위 호환성 보장).
     """
-    if not context:
-        return "최근 24시간 내 관련된 중요 뉴스 데이터가 없습니다."
-
-    # 서술형 인사이트 + JSON 전용 출력 시스템 프롬프트
     system_prompt = """당신은 투자자에게 뉴스 기반 인사이트를 전달하는 시니어 애널리스트입니다.
 제공된 [뉴스 원문]을 바탕으로 투자자가 상황을 즉시 이해할 수 있는 서술형 분석을 작성하세요.
 [절대 규칙]
@@ -172,7 +365,7 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
 
     [출력 형식 - 순수 JSON만, 코드블록 없이]
     {{
-      "key_event": "무슨 일이 있었는지 서술형 1-2문장 (수치가 있다면 문장 안에 자연스럽게 포함, 최대 500자). 없으면 빈 문자열.",
+      "key_event": "무슨 일이 있었는지 서술형 1-2문장 (최대 500자). 없으면 빈 문자열.",
       "expected_impact": "투자자에게 왜 중요한지, 어떤 영향이 예상되는지 서술형 1-2문장 (최대 500자). 없으면 빈 문자열.",
       "reference_indicators": ["투자자가 확인해야 할 지표1", "지표2", "지표3"],
       "bullets": ["key_event/expected_impact와 겹치지 않는 보조 수치·세부정보 1", "보조정보 2"],
@@ -195,60 +388,58 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
     [중요] 각 필드가 지정된 최대 길이·개수를 초과하면 안 됩니다!
     """
 
-    models = MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"])
+    messages = [
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
 
-    for model_name in models:
-        # 이번 Lambda 실행에서 이미 429가 발생한 모델은 즉시 건너뜀
-        if model_name in _quota_exceeded_models:
-            logger.info(f"⏭️ {model_name} 할당량 초과 이력 - 건너뜁니다.")
+    for model_name in MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"]):
+        logger.info(f"🤖 [폴백 단일호출] AI 분석 시도 (모델: {model_name})")
+        raw = _call_llm(model_name, messages, MAX_TOKENS)
+        if raw is None:
             continue
-
-        try:
-            client, api_model = _get_client_and_model(model_name)
-            logger.info(f"🤖 [{category.upper()}] AI 분석 시도 중... (모델: {model_name})")
-
-            response = client.chat.completions.create(
-                model=api_model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                max_tokens=MAX_TOKENS,
-                temperature=TEMPERATURE,
-            )
-
-            # 토큰 제한으로 출력이 잘린 경우 → 다음 모델로 폴백
-            if response.choices[0].finish_reason == "length":
-                raise Exception("출력이 토큰 제한으로 잘림 - 다음 모델로 전환")
-
-            raw = response.choices[0].message.content or ""
-
-            # Pydantic 파싱 시도 → 성공 시 dict 반환, 실패 시 원본 문자열 폴백
-            parsed = _parse_with_pydantic(raw)
-            if parsed:
-                logger.info(f"✅ AI 분석 완료 (모델: {model_name}, 형식: Pydantic JSON)")
-                return parsed
-            else:
-                # 극히 드문 경우만 도달 (부분 파싱도 완전 실패)
-                logger.error(f"❌ Pydantic 파싱 완전 실패 - 원본 문자열 폴백: {raw[:100]}")
-                logger.info(f"✅ AI 분석 완료 (모델: {model_name}, 형식: 문자열 폴백)")
-                return raw
-
-        except RateLimitError:
-            # [P5 Fix] openai SDK의 RateLimitError(HTTP 429)를 타입으로 정확히 감지
-            _quota_exceeded_models.add(model_name)
-            logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화 및 다음 모델로 전환합니다.")
-            continue
-
-        except Exception as e:
-            error_str = str(e)
-            # [P5 Fix] Gemini의 RESOURCE_EXHAUSTED는 openai RateLimitError가 아닌
-            # 일반 Exception으로 래핑될 수 있어 문자열 체크를 폴백으로 유지
-            if "RESOURCE_EXHAUSTED" in error_str or "429" in error_str:
-                _quota_exceeded_models.add(model_name)
-                logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화 및 다음 모델로 전환합니다.")
-            else:
-                logger.warning(f"⚠️ {model_name} 실패 ({error_str}) -> 다음 모델로 전환합니다.")
-            continue
+        parsed = _parse_with_pydantic(raw)
+        if parsed:
+            logger.info(f"✅ [폴백] AI 분석 완료 (모델: {model_name})")
+            return parsed
+        logger.error(f"❌ [폴백] Pydantic 파싱 실패 - 원본 문자열 반환")
+        return raw
 
     return "현재 모든 AI 모델의 한도가 초과되었거나 응답할 수 없는 상태입니다."
+
+
+def generate_ai_summary(stock_name: str, context: str, category: str = "watchlist") -> dict | str:
+    """
+    카테고리별 최적 모델로 AI 브리핑을 생성합니다. (Phase 2: Router-Worker 구조)
+
+    흐름:
+      Step 1 (SLM Worker)  → Schema A (key_event, bullets, reference_indicators, glossary_terms) 빠른 추출
+      Step 2 (LLM Thinker) → Schema B (expected_impact, flow_explanation, trend_insight) 심층 분석
+      두 결과를 병합하여 반환.
+
+    폴백:
+      Step 1 실패 시 → 기존 단일 호출 방식(_fallback_single_call)으로 7개 필드 한 번에 생성.
+
+    - category: "macro" | "portfolio" | "watchlist"
+    - 반환값: dict (JSON) 또는 str (완전 실패 시 메시지)
+    """
+    if not context:
+        return "최근 24시간 내 관련된 중요 뉴스 데이터가 없습니다."
+
+    logger.info(f"🚀 [{category.upper()}] Router-Worker AI 분석 시작: {stock_name}")
+
+    # Step 1: SLM Worker — Schema A 빠른 추출
+    fast_result = _generate_fast_extract(stock_name, context, category)
+
+    if fast_result is None:
+        # Step 1 실패 → 기존 단일 호출 방식으로 폴백
+        logger.warning(f"⚠️ Step 1 실패 → 단일 폴백 호출로 전환")
+        return _fallback_single_call(stock_name, context, category)
+
+    # Step 2: LLM Thinker — Schema B 심층 분석 (Step 1 결과 활용)
+    deep_result = _generate_deep_insight(stock_name, context, fast_result, category)
+
+    # Schema A + Schema B 병합 → 최종 7개 필드 dict
+    merged = {**fast_result, **deep_result}
+    logger.info(f"✅ [{category.upper()}] Router-Worker 완료: {stock_name} ({len(merged)} 필드)")
+    return merged

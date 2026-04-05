@@ -35,7 +35,41 @@ MODEL_CONFIG: dict[str, list[str]] = {
 
 }
 
-# 출력 토큰 한도 (모든 모델 공통)
+# =============================================================================
+# Phase 2: SLM Worker 모델 설정 (Fast Extract — Schema A 전용)
+# 목적: 1-2초 내 빠른 팩트 추출 (key_event, bullets, reference_indicators, glossary_terms)
+# 선택 기준: Groq 인프라 (초저지연) + 경량 모델 우선
+# =============================================================================
+
+SLM_MODEL_CONFIG: dict[str, list[str]] = {
+
+    # 거시경제: 빠른 팩트 추출은 경량 모델로 충분
+    "macro": [
+        "groq/llama-3.1-8b-instant",      # 1순위: 초고속 (Groq 인프라)
+        "groq/openai/gpt-oss-20b",        # 2순위: Groq 고성능 폴백
+        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash (할당량 안정)
+    ],
+
+    # 포트폴리오: 팩트 추출은 경량 모델, 심층 분석은 LLM Thinker에서 수행
+    "portfolio": [
+        "groq/llama-3.1-8b-instant",      # 1순위: 초고속
+        "groq/openai/gpt-oss-20b",        # 2순위: Groq 고성능 폴백
+        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash
+    ],
+
+    # 관심종목: 경량 모델로 충분
+    "watchlist": [
+        "groq/llama-3.1-8b-instant",      # 1순위: 초고속
+        "gemini/gemini-2.5-flash-lite",   # 2순위: 최고 일일 할당량 (1000 RPD)
+        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash 폴백
+    ],
+
+}
+
+# SLM Fast Extract 전용 토큰 한도 (Schema A만 생성하므로 절반으로 축소)
+SLM_MAX_TOKENS: int = 1500
+
+# 출력 토큰 한도 (LLM Thinker — Schema B 또는 폴백 단일 호출)
 # JSON 구조화 출력으로 전환하면서 1500 → 2000으로 상향 (JSON 형식 토큰 소모 증가)
 # glossary_terms + flow_explanation 필드 추가로 2000 → 2500으로 상향
 # key_event + expected_impact + reference_indicators 3단 구조 추가로 2500 → 3000으로 상향

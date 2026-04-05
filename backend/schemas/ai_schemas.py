@@ -1,11 +1,10 @@
 # =============================================================================
 # AI 요약 응답 스키마 (Pydantic v2)
-# Phase 1: 단일 통합 스키마 (AISummarySchema)
-# Phase 2: Schema A(Fast) / Schema B(Deep)로 분리 예정
+# Phase 1: 단일 통합 스키마 (AISummarySchema) — 폴백용으로 유지
+# Phase 2: Schema A(SLM Fast Extract) / Schema B(LLM Deep Insight)로 분리
 # =============================================================================
 
 from pydantic import BaseModel, Field, field_validator, ConfigDict
-from typing import List
 
 
 class GlossaryTermModel(BaseModel):
@@ -120,3 +119,108 @@ class AISummarySchema(BaseModel):
                         continue
             return valid_terms
         raise ValueError(f"list 타입이어야 하는데 {type(v).__name__} 수신")
+
+
+# =============================================================================
+# Phase 2: Schema A — SLM Fast Extract (1-2초 내 빠른 추출)
+# SLM Worker(Groq Llama 등)가 생성. 모바일 UI에 즉시 표시.
+# =============================================================================
+
+class AISummaryFastSchema(BaseModel):
+    """
+    Schema A: 빠른 정보 추출 (SLM Worker 담당)
+    - 목적: 모바일 UI에 1-2초 내 즉시 표시
+    - 담당 모델: Groq Llama 3.1 8b-instant 등 경량 SLM
+    - 필드: 팩트 추출 중심 (추론 불필요)
+    """
+
+    key_event: str = Field(
+        default="",
+        max_length=500,
+        description="뉴스 핵심 이벤트 (서술형 1-2문장, 최대 500자)"
+    )
+    bullets: list[str] = Field(
+        default_factory=list,
+        max_items=5,
+        description="보조 수치·세부 정보 (최대 5개, key_event와 중복 제외)"
+    )
+    reference_indicators: list[str] = Field(
+        default_factory=list,
+        max_items=4,
+        description="투자자가 확인해야 할 지표 (최대 4개)"
+    )
+    glossary_terms: list[GlossaryTermModel] = Field(
+        default_factory=list,
+        max_items=5,
+        description="금융 용어 정의 (최대 5개)"
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+    @field_validator('key_event', mode='before')
+    @classmethod
+    def ensure_str(cls, v):
+        if isinstance(v, str):
+            return v
+        raise ValueError(f"str 타입이어야 하는데 {type(v).__name__} 수신")
+
+    @field_validator('bullets', 'reference_indicators', mode='before')
+    @classmethod
+    def ensure_list_of_str(cls, v):
+        if isinstance(v, list):
+            return [item for item in v if isinstance(item, str)]
+        raise ValueError(f"list 타입이어야 하는데 {type(v).__name__} 수신")
+
+    @field_validator('glossary_terms', mode='before')
+    @classmethod
+    def ensure_glossary_list(cls, v):
+        if isinstance(v, list):
+            valid_terms = []
+            for item in v:
+                if isinstance(item, dict):
+                    try:
+                        GlossaryTermModel.model_validate(item)
+                        valid_terms.append(item)
+                    except Exception:
+                        continue
+            return valid_terms
+        raise ValueError(f"list 타입이어야 하는데 {type(v).__name__} 수신")
+
+
+# =============================================================================
+# Phase 2: Schema B — LLM Deep Insight (심층 추론 분석)
+# LLM Thinker(Gemini 등)가 Step 1 결과를 받아 생성.
+# =============================================================================
+
+class AISummaryDeepSchema(BaseModel):
+    """
+    Schema B: 심층 추론 분석 (LLM Thinker 담당)
+    - 목적: 투자 영향 분석 및 인과관계 해석
+    - 담당 모델: Gemini 2.5 Pro/Flash 등 고성능 LLM
+    - 필드: 추론·판단 중심 (SLM으로 불가)
+    """
+
+    expected_impact: str = Field(
+        default="",
+        max_length=500,
+        description="투자자에게 미칠 영향도 (서술형 1-2문장, 최대 500자)"
+    )
+    flow_explanation: str = Field(
+        default="",
+        max_length=500,
+        description="시장 인과관계 흐름 (원인→결과→영향, 최대 500자)"
+    )
+    trend_insight: str = Field(
+        default="",
+        max_length=500,
+        description="주가 추세 데이터 기반 분석 (1-2문장, 최대 500자)"
+    )
+
+    model_config = ConfigDict(extra="allow")
+
+    @field_validator('expected_impact', 'flow_explanation', 'trend_insight', mode='before')
+    @classmethod
+    def ensure_str(cls, v):
+        if isinstance(v, str):
+            return v
+        raise ValueError(f"str 타입이어야 하는데 {type(v).__name__} 수신")
