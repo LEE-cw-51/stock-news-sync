@@ -5,6 +5,7 @@ openai
 psycopg2-binary
 rank-bm25
 vaderSentiment
+pydantic>=2.0
 
 # --- Future Use (Chatbot) ---
 # openai

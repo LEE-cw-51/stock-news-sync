@@ -5,11 +5,14 @@ import logging
 from pathlib import Path
 from openai import OpenAI, RateLimitError  # [P5 Fix] RateLimitError 타입 임포트
 from dotenv import load_dotenv
+from pydantic import ValidationError
 
 try:
     from backend.config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
+    from backend.schemas.ai_schemas import AISummarySchema, GlossaryTermModel
 except ModuleNotFoundError:
     from config.models import MODEL_CONFIG, MAX_TOKENS, TEMPERATURE
+    from schemas.ai_schemas import AISummarySchema, GlossaryTermModel
 
 load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
@@ -59,52 +62,80 @@ def _get_client_and_model(model_name: str):
     raise ValueError(f"알 수 없는 모델 prefix: {model_name}")
 
 
-def _parse_json_response(raw: str) -> dict | None:
+def _parse_with_pydantic(raw: str) -> dict | None:
     """
-    LLM 응답에서 JSON 객체를 추출합니다.
-    - 코드블록(```json ... ```) 제거 후 json.loads() 시도
-    - 필드 타입 검증·정규화 후 반환 (타입 오류 시 빈 값으로 강제)
-    - 실패 시 None 반환 (호출자가 문자열 폴백 처리)
+    LLM 응답을 Pydantic으로 파싱합니다.
+
+    전략:
+    1. JSON 파싱 실패 → {} 반환 → Pydantic이 기본값으로 채움
+    2. ValidationError (필드별 검증 실패) → 부분 파싱: 검증된 필드만 반환, 오류 필드는 기본값
+    3. 최악의 경우 (완전 파싱 불가) → None 반환 → 호출자가 원본 문자열 폴백
+
+    반환:
+    - dict: 모든 필드가 (검증되거나 기본값으로) 채워진 스키마
+    - None: 극히 드문 경우만 (로깅됨)
     """
-    # 코드블록 제거: ```json ... ``` 또는 ``` ... ```
+
+    # Step 1: 코드블록 정규화
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
+
+    # Step 2: JSON 파싱 (실패해도 에러 아님 → {} 반환)
     try:
-        parsed = json.loads(cleaned)
-        # 필수 키 검증 (신규 3단 구조 또는 구버전 형식 모두 허용)
-        if not (isinstance(parsed, dict) and (
-            "bullets" in parsed or "key_event" in parsed
-        )):
-            return None
+        raw_dict = json.loads(cleaned)
+    except json.JSONDecodeError as e:
+        logger.warning(f"⚠️ JSON 파싱 실패: {str(e)[:100]}... → 기본값으로 복원")
+        raw_dict = {}
 
-        # [Copilot #4] 필드 타입 정규화 — LLM 오출력으로 인한 프론트 런타임 크래시 방지
-        # list[str] 필드: 잘못된 타입이면 [] 로 강제
-        for list_field in ("bullets", "reference_indicators"):
-            v = parsed.get(list_field)
-            if not isinstance(v, list):
-                parsed[list_field] = []
-            else:
-                parsed[list_field] = [i for i in v if isinstance(i, str)]
+    # Step 3: Pydantic 검증 (필드별 독립 검증)
+    try:
+        schema = AISummarySchema.model_validate(raw_dict)
+        logger.debug(f"✅ Pydantic 검증 성공: {len(schema.model_dump())} 필드")
+        return schema.model_dump()
 
-        # glossary_terms: {term: str, definition: str} 형식만 통과
-        glossary = parsed.get("glossary_terms")
-        if not isinstance(glossary, list):
-            parsed["glossary_terms"] = []
-        else:
-            parsed["glossary_terms"] = [
-                g for g in glossary
-                if isinstance(g, dict)
-                and isinstance(g.get("term"), str)
-                and isinstance(g.get("definition"), str)
-            ]
+    except ValidationError as e:
+        # 부분 파싱: 각 필드를 개별적으로 재검증
+        logger.warning(f"⚠️ Pydantic 검증 실패: {e.error_count()} 필드 오류 → 부분 파싱 시도")
 
-        # str 필드: str 아니면 "" 로 강제
-        for str_field in ("key_event", "expected_impact", "trend_insight", "flow_explanation"):
-            if not isinstance(parsed.get(str_field), str):
-                parsed[str_field] = ""
+        validated_data = {}
+        for field_name, field_info in AISummarySchema.model_fields.items():
+            field_value = raw_dict.get(field_name)
 
-        return parsed
-    except (json.JSONDecodeError, ValueError):
-        return None
+            try:
+                # 필드별 검증 (간단 버전: Pydantic 전체 검증보다 가볍게)
+                if field_name in ('bullets', 'reference_indicators'):
+                    if isinstance(field_value, list):
+                        validated_data[field_name] = [
+                            v for v in field_value if isinstance(v, str)
+                        ]
+                    else:
+                        validated_data[field_name] = []
+
+                elif field_name == 'glossary_terms':
+                    if isinstance(field_value, list):
+                        valid_terms = []
+                        for item in field_value:
+                            try:
+                                GlossaryTermModel.model_validate(item)
+                                valid_terms.append(item)
+                            except ValidationError:
+                                continue
+                        validated_data[field_name] = valid_terms
+                    else:
+                        validated_data[field_name] = []
+
+                else:  # str 필드 (key_event, expected_impact, trend_insight, flow_explanation)
+                    if isinstance(field_value, str):
+                        validated_data[field_name] = field_value
+                    else:
+                        validated_data[field_name] = ""
+
+            except Exception as ex:
+                # 예상 외 오류 → 기본값 사용
+                logger.warning(f"⚠️ {field_name} 필드 복구 실패: {ex}")
+                validated_data[field_name] = field_info.default or ([] if 'list' in str(field_info.annotation) else "")
+
+        logger.info(f"✅ 부분 파싱 완료: {len(validated_data)} 필드 복원")
+        return validated_data
 
 
 def generate_ai_summary(stock_name: str, context: str, category: str = "watchlist") -> dict | str:
@@ -141,22 +172,27 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
 
     [출력 형식 - 순수 JSON만, 코드블록 없이]
     {{
-      "key_event": "무슨 일이 있었는지 서술형 1-2문장 (수치가 있다면 문장 안에 자연스럽게 포함). 없으면 빈 문자열.",
-      "expected_impact": "투자자에게 왜 중요한지, 어떤 영향이 예상되는지 서술형 1-2문장. 없으면 빈 문자열.",
+      "key_event": "무슨 일이 있었는지 서술형 1-2문장 (수치가 있다면 문장 안에 자연스럽게 포함, 최대 500자). 없으면 빈 문자열.",
+      "expected_impact": "투자자에게 왜 중요한지, 어떤 영향이 예상되는지 서술형 1-2문장 (최대 500자). 없으면 빈 문자열.",
       "reference_indicators": ["투자자가 확인해야 할 지표1", "지표2", "지표3"],
       "bullets": ["key_event/expected_impact와 겹치지 않는 보조 수치·세부정보 1", "보조정보 2"],
-      "trend_insight": "주가 추세 데이터 기반 1-2문장 또는 추세 데이터 없음",
+      "trend_insight": "주가 추세 데이터 기반 1-2문장 (최대 500자) 또는 추세 데이터 없음",
       "glossary_terms": [
-        {{"term": "용어명", "definition": "한 줄 정의"}}
+        {{"term": "용어명 (최대 50자)", "definition": "한 줄 정의 (최대 200자)"}}
       ],
-      "flow_explanation": "원인 → 결과 → 영향 흐름 1-2문장"
+      "flow_explanation": "원인 → 결과 → 영향 흐름 1-2문장 (최대 500자)"
     }}
 
-    - key_event/expected_impact: 제공된 뉴스에서 팩트만. 없으면 "" 반환.
-    - reference_indicators: 투자자가 추가로 확인해야 할 경제·기업 지표 2-4개. 없으면 [] 반환.
-    - bullets: key_event/expected_impact에서 이미 언급한 내용 제외, 보조 수치·세부 정보만. 없으면 [] 반환.
-    - glossary_terms: 투자자가 모를 수 있는 금융·경제 용어 2-3개, 한 줄 정의. 없으면 [] 반환.
-    - flow_explanation: 인과관계 흐름 1-2문장. 없으면 "" 반환.
+    [필드별 제약 조건 - PYDANTIC 검증]
+    - key_event: 최대 500자, 서술형 1-2문장. 없으면 "" 반환.
+    - expected_impact: 최대 500자, 서술형 1-2문장. 없으면 "" 반환.
+    - reference_indicators: 최대 4개 항목. 2-4개 지표 권장. 없으면 [] 반환.
+    - bullets: 최대 5개 항목. key_event/expected_impact에서 이미 언급한 내용 제외, 보조 수치·세부 정보만. 없으면 [] 반환.
+    - trend_insight: 최대 500자. 주가 추세 기반 1-2문장. 없으면 "" 반환.
+    - glossary_terms: 최대 5개 항목, 각 term(최대 50자) + definition(최대 200자). 금융 용어 2-3개 권장. 없으면 [] 반환.
+    - flow_explanation: 최대 500자. 인과관계 흐름 1-2문장. 없으면 "" 반환.
+
+    [중요] 각 필드가 지정된 최대 길이·개수를 초과하면 안 됩니다!
     """
 
     models = MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"])
@@ -187,13 +223,14 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
 
             raw = response.choices[0].message.content or ""
 
-            # JSON 파싱 시도 → 성공 시 dict 반환, 실패 시 원본 문자열 폴백
-            parsed = _parse_json_response(raw)
-            if parsed is not None:
-                logger.info(f"✅ AI 분석 완료 (모델: {model_name}, 형식: JSON)")
+            # Pydantic 파싱 시도 → 성공 시 dict 반환, 실패 시 원본 문자열 폴백
+            parsed = _parse_with_pydantic(raw)
+            if parsed:
+                logger.info(f"✅ AI 분석 완료 (모델: {model_name}, 형식: Pydantic JSON)")
                 return parsed
             else:
-                logger.warning(f"⚠️ {model_name} JSON 파싱 실패 - 문자열 폴백 반환")
+                # 극히 드문 경우만 도달 (부분 파싱도 완전 실패)
+                logger.error(f"❌ Pydantic 파싱 완전 실패 - 원본 문자열 폴백: {raw[:100]}")
                 logger.info(f"✅ AI 분석 완료 (모델: {model_name}, 형식: 문자열 폴백)")
                 return raw
 
