@@ -143,8 +143,9 @@ def _parse_deep_schema(raw: str) -> dict | None:
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
     try:
         raw_dict = json.loads(cleaned)
-    except json.JSONDecodeError:
-        raw_dict = {}
+    except json.JSONDecodeError as e:
+        logger.warning("⚠️ AISummaryDeepSchema JSON 디코딩 실패: %s", e)
+        return None
 
     try:
         schema = AISummaryDeepSchema.model_validate(raw_dict)
