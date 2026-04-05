@@ -153,7 +153,7 @@ def _parse_deep_schema(raw: str) -> dict | None:
         result: dict = {}
         for field_name in AISummaryDeepSchema.model_fields:
             val = raw_dict.get(field_name)
-            result[field_name] = val if isinstance(val, str) else ""
+            result[field_name] = val[:500] if isinstance(val, str) else ""
         return result
 
 
