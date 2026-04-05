@@ -35,7 +35,44 @@ MODEL_CONFIG: dict[str, list[str]] = {
 
 }
 
-# 출력 토큰 한도 (모든 모델 공통)
+# =============================================================================
+# Phase 2: SLM Worker 모델 설정 (Fast Extract — Schema A 전용)
+# 목적: 1-2초 내 빠른 팩트 추출 (key_event, bullets, reference_indicators, glossary_terms)
+# 선택 기준: Groq 인프라 (초저지연) + 경량 모델 우선
+# =============================================================================
+
+SLM_MODEL_CONFIG: dict[str, list[str]] = {
+
+    # 관심종목: 속도 최우선 (트렌드 모니터링, 단순 팩트 추출)
+    # 8B 초고속 → Gemma 9B → 70B 폴백
+    "watchlist": [
+        "groq/llama-3.1-8b-instant",      # 1순위: 8B 초고속 (순수 팩트 추출, 속도 최우선)
+        "groq/gemma2-9b-it",              # 2순위: Gemma2 9B (Groq 직접 지원)
+        "groq/llama-3.3-70b-versatile",   # 3순위: 70B 폴백
+    ],
+
+    # 거시경제: 추론 깊이 우선 (복잡한 거시경제 팩트 + 한국어 문맥)
+    # Llama 3.3 70B 기본 분석 → Qwen3 한국어 금융 특화 → Gemini Flash 안정 폴백
+    "macro": [
+        "groq/llama-3.3-70b-versatile",   # 1순위: 70B 기본 분석 (Groq 고속 인프라)
+        "groq/qwen/qwen3-32b",            # 2순위: Qwen3 한국어 금융 문맥 특화
+        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash 안정 폴백
+    ],
+
+    # 포트폴리오: 정밀 추출 우선 (기업별 한국어 금융 팩트 정확성)
+    # Qwen3 한국어 금융 1순위 → Llama 3.3 70B 기본 분석 → Gemini Flash 폴백
+    "portfolio": [
+        "groq/qwen/qwen3-32b",            # 1순위: 한국어 금융 문맥 강점 (기업별 정밀 추출)
+        "groq/llama-3.3-70b-versatile",   # 2순위: 70B 기본 분석
+        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash 안정 폴백
+    ],
+
+}
+
+# SLM Fast Extract 전용 토큰 한도 (Schema A만 생성하므로 절반으로 축소)
+SLM_MAX_TOKENS: int = 1500
+
+# 출력 토큰 한도 (LLM Thinker — Schema B 또는 폴백 단일 호출)
 # JSON 구조화 출력으로 전환하면서 1500 → 2000으로 상향 (JSON 형식 토큰 소모 증가)
 # glossary_terms + flow_explanation 필드 추가로 2000 → 2500으로 상향
 # key_event + expected_impact + reference_indicators 3단 구조 추가로 2500 → 3000으로 상향
