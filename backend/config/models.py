@@ -43,25 +43,28 @@ MODEL_CONFIG: dict[str, list[str]] = {
 
 SLM_MODEL_CONFIG: dict[str, list[str]] = {
 
-    # 거시경제: 빠른 팩트 추출은 경량 모델로 충분
-    "macro": [
-        "groq/llama-3.1-8b-instant",      # 1순위: 초고속 (Groq 인프라)
-        "groq/openai/gpt-oss-20b",        # 2순위: Groq 고성능 폴백
-        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash (할당량 안정)
-    ],
-
-    # 포트폴리오: 팩트 추출은 경량 모델, 심층 분석은 LLM Thinker에서 수행
-    "portfolio": [
-        "groq/llama-3.1-8b-instant",      # 1순위: 초고속
-        "groq/openai/gpt-oss-20b",        # 2순위: Groq 고성능 폴백
-        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash
-    ],
-
-    # 관심종목: 경량 모델로 충분
+    # 관심종목: 속도 최우선 (트렌드 모니터링, 단순 팩트 추출)
+    # 8B 초고속 → Gemma 9B → 70B 폴백
     "watchlist": [
-        "groq/llama-3.1-8b-instant",      # 1순위: 초고속
-        "gemini/gemini-2.5-flash-lite",   # 2순위: 최고 일일 할당량 (1000 RPD)
-        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash 폴백
+        "groq/llama-3.1-8b-instant",      # 1순위: 8B 초고속 (순수 팩트 추출, 속도 최우선)
+        "groq/gemma2-9b-it",              # 2순위: Gemma2 9B (Groq 직접 지원)
+        "groq/llama-3.3-70b-versatile",   # 3순위: 70B 폴백
+    ],
+
+    # 거시경제: 추론 깊이 우선 (복잡한 거시경제 팩트 + 한국어 문맥)
+    # Llama 3.3 70B 기본 분석 → Qwen3 한국어 금융 특화 → Gemini Flash 안정 폴백
+    "macro": [
+        "groq/llama-3.3-70b-versatile",   # 1순위: 70B 기본 분석 (Groq 고속 인프라)
+        "groq/qwen/qwen3-32b",            # 2순위: Qwen3 한국어 금융 문맥 특화
+        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash 안정 폴백
+    ],
+
+    # 포트폴리오: 정밀 추출 우선 (기업별 한국어 금융 팩트 정확성)
+    # Qwen3 한국어 금융 1순위 → Llama 3.3 70B 기본 분석 → Gemini Flash 폴백
+    "portfolio": [
+        "groq/qwen/qwen3-32b",            # 1순위: 한국어 금융 문맥 강점 (기업별 정밀 추출)
+        "groq/llama-3.3-70b-versatile",   # 2순위: 70B 기본 분석
+        "gemini/gemini-2.5-flash",        # 3순위: Gemini Flash 안정 폴백
     ],
 
 }

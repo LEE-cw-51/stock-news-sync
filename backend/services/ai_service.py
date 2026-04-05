@@ -161,11 +161,26 @@ def _generate_fast_extract(
     - SLM_MODEL_CONFIG의 빠른 모델 사용
     - 실패 시 None 반환 → 호출자가 단일 폴백으로 전환
     """
-    system_prompt = """당신은 뉴스에서 핵심 팩트를 빠르게 추출하는 전문가입니다.
+    system_prompt = """당신은 한국어 금융 뉴스 팩트 추출 엔진입니다.
+모바일 투자자에게 핵심 정보를 1초 내에 정확한 JSON으로 전달하는 것이 유일한 임무입니다.
+
 [절대 규칙]
 1. 환각 금지: 제공된 뉴스 원문에 없는 정보는 절대 작성하지 마십시오.
-2. 언어: 반드시 한국어로 출력하십시오.
-3. JSON ONLY: 마크다운·코드블록 없이 순수 JSON만 출력하십시오."""
+2. 수치 정확성: 퍼센트·금액·날짜는 원문 그대로 인용하십시오. 추정값 사용 금지.
+3. 언어: 반드시 한국어로 출력하십시오.
+4. JSON ONLY: 마크다운·코드블록·설명 텍스트 없이 순수 JSON만 출력하십시오.
+
+[추출 우선순위]
+- key_event: 가장 중요한 단일 이벤트를 서술형 1-2문장으로 (기업명·수치 포함)
+- bullets: key_event와 겹치지 않는 보조 수치·세부 사실만 (매출 증감률, 경쟁사 동향 등)
+- reference_indicators: 다음 거래일에 투자자가 확인해야 할 구체적 지표 (외국인 순매수, 환율 등)
+- glossary_terms: 일반 투자자가 모를 수 있는 전문 용어만 선별 (PER, EPS, 레포금리 등)
+
+[스키마 제약 — 위반 시 응답 거부됨]
+- key_event: 최대 500자 (서술형 1-2문장)
+- bullets: 최대 5개 항목 (key_event 중복 금지)
+- reference_indicators: 최대 4개 항목
+- glossary_terms: 최대 5개 항목 (term ≤50자, definition ≤200자)"""
 
     user_prompt = f"""
 [분석 대상]: {stock_name}
@@ -437,6 +452,8 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
         return _fallback_single_call(stock_name, context, category)
 
     # Step 2: LLM Thinker — Schema B 심층 분석 (Step 1 결과 활용)
+    # 확장 포인트: 향후 expected_impact·trend_insight 등 특정 필드를
+    #   전용 고성능 모델(예: gemini-2.5-pro)로 라우팅하려면 이 지점에서 분기 추가
     deep_result = _generate_deep_insight(stock_name, context, fast_result, category)
 
     # Schema A + Schema B 병합 → 최종 7개 필드 dict
