@@ -44,7 +44,7 @@ if not _GEMINI_CLIENT:
     logger.error("❌ GEMINI_API_KEY가 설정되지 않았습니다.")
 
 # Lambda 실행 내 429 초과 모델을 기억 → 같은 세션에서 재시도 방지
-_quota_exceeded_models: set = set()
+_quota_exceeded_models: set[str] = set()
 
 
 def _get_client_and_model(model_name: str):
@@ -66,7 +66,7 @@ def _get_client_and_model(model_name: str):
     raise ValueError(f"알 수 없는 모델 prefix: {model_name}")
 
 
-def _call_llm(model_name: str, messages: list, max_tokens: int) -> str | None:
+def _call_llm(model_name: str, messages: list[dict[str, str]], max_tokens: int) -> str | None:
     """
     단일 LLM 호출 공통 함수.
     - 429/할당량 초과 시 _quota_exceeded_models에 기록 후 None 반환
