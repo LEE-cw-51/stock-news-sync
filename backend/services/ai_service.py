@@ -85,22 +85,22 @@ def _call_llm(model_name: str, messages: list, max_tokens: int) -> str | None:
             temperature=TEMPERATURE,
         )
         if response.choices[0].finish_reason == "length":
-            logger.warning(f"⚠️ {model_name} 토큰 잘림(length) → 건너뜁니다.")
+            logger.warning("⚠️ %s 토큰 잘림(length) → 건너뜁니다.", model_name)
             return None
         return response.choices[0].message.content or ""
 
     except RateLimitError:
         _quota_exceeded_models.add(model_name)
-        logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화.")
+        logger.warning("⚠️ %s 할당량 초과(429) - 세션 비활성화.", model_name)
         return None
 
     except Exception as e:
         error_str = str(e)
         if "RESOURCE_EXHAUSTED" in error_str or "429" in error_str:
             _quota_exceeded_models.add(model_name)
-            logger.warning(f"⚠️ {model_name} 할당량 초과(429) - 세션 비활성화.")
+            logger.warning("⚠️ %s 할당량 초과(429) - 세션 비활성화.", model_name)
         else:
-            logger.warning(f"⚠️ {model_name} 실패 ({error_str[:80]})")
+            logger.warning("⚠️ %s 실패 (%s)", model_name, error_str[:80])
         return None
 
 
@@ -118,20 +118,23 @@ def _parse_fast_schema(raw: str) -> dict | None:
         return schema.model_dump()
     except ValidationError:
         # JSON 파싱은 성공했지만 스키마가 맞지 않는 경우에만 부분 복구
+        # 스키마 제약(max_length/max_items)을 수동으로 적용
         result: dict = {}
         for field_name in AISummaryFastSchema.model_fields:
             val = raw_dict.get(field_name)
             if field_name == 'key_event':
-                result[field_name] = val if isinstance(val, str) else ""
+                result[field_name] = (val[:500] if isinstance(val, str) else "")
+            elif field_name == 'bullets':
+                result[field_name] = [v for v in (val or []) if isinstance(v, str)][:5]
+            elif field_name == 'reference_indicators':
+                result[field_name] = [v for v in (val or []) if isinstance(v, str)][:4]
             elif field_name == 'glossary_terms':
                 result[field_name] = [
                     item for item in (val or [])
                     if isinstance(item, dict)
                     and isinstance(item.get("term"), str)
                     and isinstance(item.get("definition"), str)
-                ]
-            else:
-                result[field_name] = [v for v in (val or []) if isinstance(v, str)]
+                ][:5]
         return result
 
 
@@ -206,13 +209,13 @@ def _generate_fast_extract(
     ]
 
     for model_name in SLM_MODEL_CONFIG.get(category, SLM_MODEL_CONFIG["watchlist"]):
-        logger.info(f"⚡ [SLM Worker] Schema A 추출 시도 (모델: {model_name})")
+        logger.info("⚡ [SLM Worker] Schema A 추출 시도 (모델: %s)", model_name)
         raw = _call_llm(model_name, messages, SLM_MAX_TOKENS)
         if raw is None:
             continue
         parsed = _parse_fast_schema(raw)
         if parsed:
-            logger.info(f"✅ [SLM Worker] Schema A 추출 완료 (모델: {model_name})")
+            logger.info("✅ [SLM Worker] Schema A 추출 완료 (모델: %s)", model_name)
             return parsed
 
     logger.warning("⚠️ [SLM Worker] 모든 모델 실패 → 단일 폴백으로 전환")
@@ -262,13 +265,13 @@ def _generate_deep_insight(
 
     # LLM Thinker는 기존 MODEL_CONFIG 사용 (고성능 모델 우선)
     for model_name in MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"]):
-        logger.info(f"🧠 [LLM Thinker] Schema B 분석 시도 (모델: {model_name})")
+        logger.info("🧠 [LLM Thinker] Schema B 분석 시도 (모델: %s)", model_name)
         raw = _call_llm(model_name, messages, MAX_TOKENS)
         if raw is None:
             continue
         parsed = _parse_deep_schema(raw)
         if parsed:
-            logger.info(f"✅ [LLM Thinker] Schema B 분석 완료 (모델: {model_name})")
+            logger.info("✅ [LLM Thinker] Schema B 분석 완료 (모델: %s)", model_name)
             return parsed
 
     logger.warning("⚠️ [LLM Thinker] 모든 모델 실패 → Schema B 기본값 반환")
@@ -280,34 +283,34 @@ def _parse_with_pydantic(raw: str) -> dict | None:
     LLM 응답을 Pydantic으로 파싱합니다.
 
     전략:
-    1. JSON 파싱 실패 → {} 반환 → Pydantic이 기본값으로 채움
-    2. ValidationError (필드별 검증 실패) → 부분 파싱: 검증된 필드만 반환, 오류 필드는 기본값
-    3. 최악의 경우 (완전 파싱 불가) → None 반환 → 호출자가 원본 문자열 폴백
+    1. JSON 파싱 실패 → None 반환 → 호출자(_fallback_single_call)가 원본 문자열로 폴백
+    2. JSON 성공 + Pydantic 검증 성공 → 완전한 dict 반환
+    3. JSON 성공 + ValidationError → 부분 파싱: 필드별 독립 복구 후 dict 반환
 
     반환:
-    - dict: 모든 필드가 (검증되거나 기본값으로) 채워진 스키마
-    - None: 극히 드문 경우만 (로깅됨)
+    - None: JSON 파싱 자체가 불가한 경우 (비-JSON 응답)
+    - dict: JSON 파싱 성공 시 (검증 성공 또는 부분 복구)
     """
 
     # Step 1: 코드블록 정규화
     cleaned = re.sub(r"```(?:json)?\s*", "", raw).replace("```", "").strip()
 
-    # Step 2: JSON 파싱 (실패해도 에러 아님 → {} 반환)
+    # Step 2: JSON 파싱 (실패 시 None 반환 → 호출자가 원본 문자열 폴백 처리)
     try:
         raw_dict = json.loads(cleaned)
     except json.JSONDecodeError as e:
-        logger.warning(f"⚠️ JSON 파싱 실패: {str(e)[:100]}... → 기본값으로 복원")
-        raw_dict = {}
+        logger.warning("⚠️ JSON 파싱 실패: %s → None 반환", e)
+        return None
 
     # Step 3: Pydantic 검증 (필드별 독립 검증)
     try:
         schema = AISummarySchema.model_validate(raw_dict)
-        logger.debug(f"✅ Pydantic 검증 성공: {len(schema.model_dump())} 필드")
+        logger.debug("✅ Pydantic 검증 성공: %d 필드", len(schema.model_dump()))
         return schema.model_dump()
 
     except ValidationError as e:
         # 부분 파싱: 각 필드를 개별적으로 재검증
-        logger.warning(f"⚠️ Pydantic 검증 실패: {e.error_count()} 필드 오류 → 부분 파싱 시도")
+        logger.warning("⚠️ Pydantic 검증 실패: %d 필드 오류 → 부분 파싱 시도", e.error_count())
 
         validated_data = {}
         for field_name, field_info in AISummarySchema.model_fields.items():
@@ -315,13 +318,17 @@ def _parse_with_pydantic(raw: str) -> dict | None:
 
             try:
                 # 필드별 검증 (간단 버전: Pydantic 전체 검증보다 가볍게)
-                if field_name in ('bullets', 'reference_indicators'):
-                    if isinstance(field_value, list):
-                        validated_data[field_name] = [
-                            v for v in field_value if isinstance(v, str)
-                        ]
-                    else:
-                        validated_data[field_name] = []
+                if field_name == 'bullets':
+                    validated_data[field_name] = (
+                        [v for v in field_value if isinstance(v, str)][:5]
+                        if isinstance(field_value, list) else []
+                    )
+
+                elif field_name == 'reference_indicators':
+                    validated_data[field_name] = (
+                        [v for v in field_value if isinstance(v, str)][:4]
+                        if isinstance(field_value, list) else []
+                    )
 
                 elif field_name == 'glossary_terms':
                     if isinstance(field_value, list):
@@ -332,22 +339,22 @@ def _parse_with_pydantic(raw: str) -> dict | None:
                                 valid_terms.append(item)
                             except ValidationError:
                                 continue
-                        validated_data[field_name] = valid_terms
+                        validated_data[field_name] = valid_terms[:5]
                     else:
                         validated_data[field_name] = []
 
                 else:  # str 필드 (key_event, expected_impact, trend_insight, flow_explanation)
                     if isinstance(field_value, str):
-                        validated_data[field_name] = field_value
+                        validated_data[field_name] = field_value[:500]
                     else:
                         validated_data[field_name] = ""
 
             except Exception as ex:
                 # 예상 외 오류 → 기본값 사용
-                logger.warning(f"⚠️ {field_name} 필드 복구 실패: {ex}")
+                logger.warning("⚠️ %s 필드 복구 실패: %s", field_name, ex)
                 validated_data[field_name] = field_info.default or ([] if 'list' in str(field_info.annotation) else "")
 
-        logger.info(f"✅ 부분 파싱 완료: {len(validated_data)} 필드 복원")
+        logger.info("✅ 부분 파싱 완료: %d 필드 복원", len(validated_data))
         return validated_data
 
 
@@ -410,15 +417,15 @@ def _fallback_single_call(
     ]
 
     for model_name in MODEL_CONFIG.get(category, MODEL_CONFIG["watchlist"]):
-        logger.info(f"🤖 [폴백 단일호출] AI 분석 시도 (모델: {model_name})")
+        logger.info("🤖 [폴백 단일호출] AI 분석 시도 (모델: %s)", model_name)
         raw = _call_llm(model_name, messages, MAX_TOKENS)
         if raw is None:
             continue
         parsed = _parse_with_pydantic(raw)
         if parsed:
-            logger.info(f"✅ [폴백] AI 분석 완료 (모델: {model_name})")
+            logger.info("✅ [폴백] AI 분석 완료 (모델: %s)", model_name)
             return parsed
-        logger.error(f"❌ [폴백] Pydantic 파싱 실패 - 원본 문자열 반환")
+        logger.error("❌ [폴백] Pydantic 파싱 실패 - 원본 문자열 반환")
         return raw
 
     return "현재 모든 AI 모델의 한도가 초과되었거나 응답할 수 없는 상태입니다."
@@ -442,14 +449,14 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
     if not context:
         return "최근 24시간 내 관련된 중요 뉴스 데이터가 없습니다."
 
-    logger.info(f"🚀 [{category.upper()}] Router-Worker AI 분석 시작: {stock_name}")
+    logger.info("🚀 [%s] Router-Worker AI 분석 시작: %s", category.upper(), stock_name)
 
     # Step 1: SLM Worker — Schema A 빠른 추출
     fast_result = _generate_fast_extract(stock_name, context, category)
 
     if fast_result is None:
         # Step 1 실패 → 기존 단일 호출 방식으로 폴백
-        logger.warning(f"⚠️ Step 1 실패 → 단일 폴백 호출로 전환")
+        logger.warning("⚠️ Step 1 실패 → 단일 폴백 호출로 전환")
         return _fallback_single_call(stock_name, context, category)
 
     # Step 2: LLM Thinker — Schema B 심층 분석 (Step 1 결과 활용)
@@ -459,5 +466,5 @@ def generate_ai_summary(stock_name: str, context: str, category: str = "watchlis
 
     # Schema A + Schema B 병합 → 최종 7개 필드 dict
     merged = {**fast_result, **deep_result}
-    logger.info(f"✅ [{category.upper()}] Router-Worker 완료: {stock_name} ({len(merged)} 필드)")
+    logger.info("✅ [%s] Router-Worker 완료: %s (%d 필드)", category.upper(), stock_name, len(merged))
     return merged

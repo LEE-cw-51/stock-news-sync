@@ -4,6 +4,7 @@
 # Phase 2: Schema A(SLM Fast Extract) / Schema B(LLM Deep Insight)로 분리
 # =============================================================================
 
+from typing import Any
 from pydantic import BaseModel, Field, field_validator, ConfigDict
 
 
@@ -25,7 +26,7 @@ class GlossaryTermModel(BaseModel):
 
     @field_validator('term', 'definition', mode='before')
     @classmethod
-    def strip_whitespace(cls, v):
+    def strip_whitespace(cls, v: Any) -> Any:
         """앞뒤 공백 제거"""
         return v.strip() if isinstance(v, str) else v
 
@@ -88,7 +89,7 @@ class AISummarySchema(BaseModel):
     # ===== 타입 강제 검증 =====
     @field_validator('key_event', 'expected_impact', 'trend_insight', 'flow_explanation', mode='before')
     @classmethod
-    def ensure_str(cls, v):
+    def ensure_str(cls, v: Any) -> str:
         """str 타입 강제 (타입 불일치 → ValidationError 발생)"""
         if isinstance(v, str):
             return v
@@ -96,7 +97,7 @@ class AISummarySchema(BaseModel):
 
     @field_validator('bullets', 'reference_indicators', mode='before')
     @classmethod
-    def ensure_list_of_str(cls, v):
+    def ensure_list_of_str(cls, v: Any) -> list[str]:
         """list[str] 타입 강제 (비문자열 항목 필터링)"""
         if isinstance(v, list):
             # 각 항목이 str인지 확인, 아니면 필터링
@@ -105,7 +106,7 @@ class AISummarySchema(BaseModel):
 
     @field_validator('glossary_terms', mode='before')
     @classmethod
-    def ensure_glossary_list(cls, v):
+    def ensure_glossary_list(cls, v: Any) -> list[dict]:
         """list[GlossaryTermModel] 타입 강제"""
         if isinstance(v, list):
             valid_terms = []
@@ -159,21 +160,21 @@ class AISummaryFastSchema(BaseModel):
 
     @field_validator('key_event', mode='before')
     @classmethod
-    def ensure_str(cls, v):
+    def ensure_str(cls, v: Any) -> str:
         if isinstance(v, str):
             return v
         raise ValueError(f"str 타입이어야 하는데 {type(v).__name__} 수신")
 
     @field_validator('bullets', 'reference_indicators', mode='before')
     @classmethod
-    def ensure_list_of_str(cls, v):
+    def ensure_list_of_str(cls, v: Any) -> list[str]:
         if isinstance(v, list):
             return [item for item in v if isinstance(item, str)]
         raise ValueError(f"list 타입이어야 하는데 {type(v).__name__} 수신")
 
     @field_validator('glossary_terms', mode='before')
     @classmethod
-    def ensure_glossary_list(cls, v):
+    def ensure_glossary_list(cls, v: Any) -> list[dict]:
         if isinstance(v, list):
             valid_terms = []
             for item in v:
@@ -220,7 +221,7 @@ class AISummaryDeepSchema(BaseModel):
 
     @field_validator('expected_impact', 'flow_explanation', 'trend_insight', mode='before')
     @classmethod
-    def ensure_str(cls, v):
+    def ensure_str(cls, v: Any) -> str:
         if isinstance(v, str):
             return v
         raise ValueError(f"str 타입이어야 하는데 {type(v).__name__} 수신")
