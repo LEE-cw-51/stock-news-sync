@@ -65,19 +65,19 @@ class AISummarySchema(BaseModel):
     # ===== list[str] 필드 (기본값: []) =====
     bullets: list[str] = Field(
         default_factory=list,
-        max_items=5,
+        max_length=5,
         description="key_event/expected_impact과 겹치지 않는 보조 정보 (최대 5개)"
     )
     reference_indicators: list[str] = Field(
         default_factory=list,
-        max_items=4,
+        max_length=4,
         description="투자자가 확인해야 할 지표 (최대 4개)"
     )
 
     # ===== list[GlossaryTermModel] 필드 (기본값: []) =====
     glossary_terms: list[GlossaryTermModel] = Field(
         default_factory=list,
-        max_items=5,
+        max_length=5,
         description="금융 용어 정의 (최대 5개)"
     )
 
