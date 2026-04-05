@@ -82,7 +82,7 @@ class AISummarySchema(BaseModel):
 
     # ===== Pydantic v2 설정 =====
     model_config = ConfigDict(
-        extra="allow",  # 미래 필드 추가 시 자동 무시 (에러 X)
+        extra="allow",  # 미래 필드 추가 시 허용 및 모델에 저장 (에러 X)
     )
 
     # ===== 타입 강제 검증 =====
